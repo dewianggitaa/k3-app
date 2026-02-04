@@ -1,0 +1,25 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+
+    public function up(): void
+    {
+        Schema::create('p3ks', function (Blueprint $table) {
+            $table->id();
+            $table->string("name");
+            $table->foreignId("p3k_type_id")->constrained('p3k_types');
+            $table->foreignId('area_id')->constrained('areas');
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('p3ks');
+    }
+};

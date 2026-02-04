@@ -1,0 +1,12 @@
+[90m= [39m[34;4mApp\Models\User[39;24m {#6626
+    [34mname[39m: "[32mAdministrator Sistem[39m",
+    [34musername[39m: "[32madmin[39m",
+    #[33mpassword[39m: "[32m$2y$12$uBaIFX3ItXpdQ91cDVgKmuv7dG5br1coDpBH9p.EC1coBuQGKu6kC[39m",
+    [34mdepartment_id[39m: [35m1[39m,
+    [34mposition_id[39m: [35m1[39m,
+    [34mis_active[39m: [36mtrue[39m,
+    [34mupdated_at[39m: "[32m2026-02-03 02:14:27[39m",
+    [34mcreated_at[39m: "[32m2026-02-03 02:14:27[39m",
+    [34mid[39m: [35m1[39m,
+  }
+
