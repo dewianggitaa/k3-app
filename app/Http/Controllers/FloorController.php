@@ -6,6 +6,7 @@ use App\Models\Floor;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Building;
+use Illuminate\Support\Facades\Storage;
 
 class FloorController extends Controller
 {
@@ -36,10 +37,25 @@ class FloorController extends Controller
         $validated = $request->validate([
             'building_id' => 'required|exists:buildings,id',
             'name' => 'required|string|max:255',
+            'map_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', // max 2MB
         ]);
 
+        if ($request->hasFile('map_image')) {
+            $file = $request->file('map_image');
+            
+            $filename = time() . '_' . $file->getClientOriginalName();
+            
+            $file->storeAs('public/floors', $filename);
+            
+            $validated['map_image'] = $filename;
+        }
+
         $floor = Floor::create($validated);
-        return response()->json(['message' => 'Floor created', 'data' => $floor], 201);
+        
+        return response()->json([
+            'message' => 'Floor created with map', 
+            'data' => $floor
+        ], 201);
     }
 
     public function show($id)
@@ -51,16 +67,40 @@ class FloorController extends Controller
 
     public function update(Request $request, $id)
     {
-        $floor = Floor::find($id);
-        if (!$floor) return response()->json(['message' => 'Not found'], 404);
+        $floor = Floor::findOrFail($id);
 
         $validated = $request->validate([
-            'building_id' => 'sometimes|exists:buildings,id',
-            'name' => 'sometimes|string|max:255',
+            'building_id' => 'required|exists:buildings,id',
+            'name' => 'required|string|max:255',
+            'map_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
         ]);
 
+        if ($request->hasFile('map_image')) {
+            // 1. Definisikan file dulu (biar getRealPath() gak error)
+            $file = $request->file('map_image');
+            
+            // 2. Ambil dimensi gambar
+            $imageSize = getimagesize($file->getRealPath());
+            
+            // 3. Hapus foto lama kalau ada
+            if ($floor->map_image_path) {
+                Storage::disk('public')->delete('floors/' . $floor->map_image_path);
+            }
+
+            // 4. Proses simpan
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $file->storeAs('floors', $filename, 'public');
+            
+            // 5. Masukkan ke array validated sesuai nama kolom di migration lu
+            $validated['map_image_path'] = $filename;
+            $validated['map_width'] = $imageSize[0];  // index 0 itu lebar
+            $validated['map_height'] = $imageSize[1]; // index 1 itu tinggi
+        }
+
+        // Update ke DB
         $floor->update($validated);
-        return response()->json(['message' => 'Floor updated', 'data' => $floor]);
+        
+        return redirect()->back()->with('message', 'Mantap! Data berhasil diupdate.');
     }
 
     public function destroy($id)
@@ -75,5 +115,15 @@ class FloorController extends Controller
     {
         $floors = Floor::where('building_id', $buildingId)->get();
         return response()->json($floors);
+    }
+
+    public function mapping($id)
+    {
+        // Ambil data lantai beserta ruangan-ruangannya
+        $floor = Floor::with('rooms')->findOrFail($id);
+        
+        return Inertia::render('MasterData/Floor/Mapping', [
+            'floor' => $floor,
+        ]);
     }
 }

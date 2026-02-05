@@ -18,7 +18,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     Route::resource('buildings', App\Http\Controllers\BuildingController::class);
+    Route::put('/floors/{id}', [FloorController::class, 'update'])->name('floors.update');
     Route::resource('floors', App\Http\Controllers\FloorController::class);
+    Route::get('/floors/{floor}/mapping', [FloorController::class, 'mapping'])->name('floors.mapping');
+    Route::post('/rooms/update-coordinates', [RoomController::class, 'updateCoordinates'])->name('rooms.update-coordinates');
     Route::resource('rooms', App\Http\Controllers\RoomController::class);
 });
 

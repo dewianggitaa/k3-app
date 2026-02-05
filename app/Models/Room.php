@@ -17,6 +17,10 @@ class Room extends Model
         'color',
     ];
 
+    protected $casts = [
+        'coordinates' => 'json',
+    ];
+
     public function floor()
     {
         return $this->belongsTo(Floor::class);

@@ -32,6 +32,7 @@ class RoomController extends Controller
                         })
                         ->paginate(10)
                         ->withQueryString(),
+            'floors' => Floor::with('building')->get(),
             'filters' => $request->only(['search']),
         ]);
     }
@@ -57,17 +58,22 @@ class RoomController extends Controller
 
     public function update(Request $request, $id)
     {
-        $room = Room::find($id);
-        if (!$room) return response()->json(['message' => 'Not found'], 404);
+        // 1. Cari datanya
+        $room = Room::findOrFail($id);
 
+        // 2. Validasi (Ganti required biar pasti terisi)
         $validated = $request->validate([
-            'floor_id' => 'sometimes|exists:floors,id',
-            'name' => 'sometimes|string|max:255',
-            'color' => 'nullable|string|max:50',
+            'floor_id' => 'required|exists:floors,id',
+            'name'     => 'required|string|max:255',
+            'color'    => 'nullable|string|max:50',
         ]);
 
+        // 3. Update data
         $room->update($validated);
-        return response()->json(['message' => 'Room updated', 'data' => $room]);
+
+        // 4. Redirect Back (WAJIB buat Inertia)
+        // Inertia bakal otomatis baca ini sebagai sukses dan trigger onSuccess di Vue
+        return redirect()->back();
     }
 
     public function destroy($id)
@@ -83,5 +89,20 @@ class RoomController extends Controller
     {
         $rooms = Room::where('floor_id', $floorId)->get();
         return response()->json($rooms);
+    }
+
+    public function updateCoordinates(Request $request)
+    {
+        $request->validate([
+            'room_id' => 'required|exists:rooms,id',
+            'coordinates' => 'required|array|min:3',
+        ]);
+
+        $room = Room::findOrFail($request->room_id);
+    
+        $room->coordinates = $request->coordinates;
+        $room->save();
+
+        return redirect()->back()->with('message', 'Area ruangan berhasil diperbarui!');
     }
 }

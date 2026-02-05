@@ -11,10 +11,12 @@ return new class extends Migration
     {
         Schema::create('p3ks', function (Blueprint $table) {
             $table->id();
-            $table->string("name");
+            $table->string("code")->unique();
             $table->foreignId("p3k_type_id")->constrained('p3k_types');
-            $table->foreignId('area_id')->constrained('areas');
+            $table->foreignId('floor_id')->constrained('floors');
+            $table->json('location_data')->nullable();
             $table->timestamps();
+            $table->enum('status', ['safe', 'warning', 'critical'])->default('safe');
         });
     }
 
