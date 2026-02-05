@@ -9,7 +9,7 @@ class P3k extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'location_data' => 'array',
+        'location_data' => 'json',
     ];
 
     public function type()
@@ -22,8 +22,8 @@ class P3k extends Model
         return $this->hasMany(P3kInventory::class);
     }
     
-    public function floor()
+    public function room()
     {
-        return $this->belongsTo(Floor::class);
+        return $this->belongsTo(Room::class);
     }
 }

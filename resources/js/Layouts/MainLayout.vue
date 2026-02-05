@@ -175,15 +175,20 @@ const toggleSubmenu = (menuName) => {
         </div>
 
         <main class="flex-1 min-w-0 overflow-x-hidden">
-            
-            <header class="h-12 bg-surface dark:bg-surface-dark border-b border-ghost dark:border-gray-700 flex items-center justify-between px-6 sticky top-0 z-40 transition-colors duration-300">
-                
-                <div class="text-s font-semibold text-ink dark:text-ink-dark tracking-wide">
-                    <slot name="header" />
+            <header class="min-h-[3rem] bg-surface dark:bg-surface-dark border-b border-ghost dark:border-gray-700 flex flex-col sticky top-0 z-0 transition-colors duration-300">
+    
+                <div class="flex justify-between items-center px-6 py-2">
+                    <div class="text-ink dark:text-ink-dark tracking-wide flex-1">
+                        <slot name="header-title" /> 
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <ThemeToggle />
+                    </div>
                 </div>
 
-                <div class="flex items-center gap-4">
-                    <ThemeToggle />
+                <div class="w-full">
+                    <slot name="header-nav" />
                 </div>
             </header>
 

@@ -4,9 +4,10 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ChevronLeft, MousePointer2, Save, Undo2, RotateCcw, Box, CheckCircle2 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import MainLayout from '@/Layouts/MainLayout.vue';
+import MappingNavigation from '@/Components/MappingNavigation.vue';
 
 const props = defineProps({
-    floor: Object, // Berisi data floor dan floor.rooms
+    floor: Object,
 });
 
 const selectedRoom = ref(null);
@@ -17,7 +18,6 @@ const form = useForm({
     coordinates: [],
 });
 
-// Toast Helper
 const toast = Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -30,7 +30,6 @@ const selectRoom = (room) => {
     selectedRoom.value = room;
     form.room_id = room.id;
 
-    // Logika parsing koordinat
     if (room.coordinates && Array.isArray(room.coordinates) && room.coordinates.length > 0) {
         form.coordinates = JSON.parse(JSON.stringify(room.coordinates));
         isClosed.value = true;
@@ -58,7 +57,6 @@ const handleMapClick = (event) => {
     const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
     const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
 
-    // Snapping Logic
     if (form.coordinates.length >= 3) {
         const firstPoint = form.coordinates[0];
         const distance = Math.sqrt(
@@ -123,9 +121,8 @@ const submitMapping = () => {
     });
 };
 
-// Helper untuk konversi HEX ke RGBA (agar area transparan)
 const hexToRgba = (hex, opacity) => {
-    if (!hex) return `rgba(34, 197, 94, ${opacity})`; // Default hijau
+    if (!hex) return `rgba(34, 197, 94, ${opacity})`;
     let c;
     if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
         c= hex.substring(1).split('');
@@ -143,23 +140,29 @@ const hexToRgba = (hex, opacity) => {
     <Head :title="`Mapping Area - ${floor.name}`" />
 
     <MainLayout>
-        <template #header>
+        <template #header-title>
             <div class="flex items-center gap-4">
-                <Link :href="route('floors.index')" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <Link :href="route('floors.index')" class="p-2 hover:bg-gray-100 rounded-full">
                     <ChevronLeft class="w-5 h-5 text-black" />
                 </Link>
                 <div>
-                    <h2 class="font-bold text-xl text-gray-800">Pemetaan Area Ruangan</h2>
+                    <h2 class="font-bold text-lg text-gray-800 leading-tight">Pemetaan Area</h2>
                     <p class="text-xs text-gray-500">Lantai: {{ floor.name }}</p>
                 </div>
             </div>
         </template>
 
-        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)]">
+        <template #header-nav>
+            <div class="w-full bg-red-300 px-6"> 
+                <MappingNavigation :floorId="floor.id" />
+            </div>
+        </template>
+
+        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-100px)]">
             
-            <div class="w-full lg:w-80 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
+            <div class="w-full lg:w-56 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
                 <div class="p-4 border-b bg-gray-50 rounded-t-xl">
-                    <h3 class="font-bold text-gray-700 flex items-center gap-2 text-sm">
+                    <h3 class="font-me text-gray-700 flex items-center gap-2 text-sm">
                         <Box class="w-4 h-4 text-indigo-500" />
                         Pilih Ruangan
                     </h3>
@@ -218,7 +221,7 @@ const hexToRgba = (hex, opacity) => {
                 </div>
             </div>
 
-            <div class="flex-1 bg-gray-200 rounded-xl border-2 border-dashed border-gray-300 relative overflow-hidden flex items-center justify-center p-8">
+            <div class="flex-1 bg-gray-200 rounded-xl border-2 border-dashed border-gray-300 relative overflow-hidden flex items-center justify-center p-2">
                 
                 <div class="relative inline-block shadow-2xl rounded-lg overflow-hidden bg-white">
                     <img 

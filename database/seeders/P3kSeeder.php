@@ -45,7 +45,7 @@ public function run(): void
         $p3k = \App\Models\P3k::create([
             'code' => 'P3K-L1-001',
             'p3k_type_id' => $tipeA->id,
-            'floor_id' => 1, 
+            'room_id' => 1, 
             'location_data' => json_encode(['x' => 50, 'y' => 50]), // Taruh di tengah dulu
             'status' => 'safe'
         ]);
