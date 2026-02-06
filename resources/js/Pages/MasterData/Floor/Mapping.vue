@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { 
     ChevronLeft, Undo2, RotateCcw, Box, CheckCircle2, 
-    Save, ZoomIn, ZoomOut, Maximize 
+    Save, ZoomIn, ZoomOut, Maximize, X 
 } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -13,32 +13,38 @@ const props = defineProps({
     floor: Object,
 });
 
-// --- State Utama ---
+// --- State Management ---
 const selectedRoom = ref(null);
 const isClosed = ref(false);
 const zoomLevel = ref(1);
+const isDragging = ref(false);
+const offset = ref({ x: 0, y: 0 });
+const startPan = ref({ x: 0, y: 0 });
 
 const form = useForm({
     room_id: '',
     coordinates: [],
 });
 
-// --- State Zoom & Pan (Drag) ---
-const isDragging = ref(false);
-const offset = ref({ x: 0, y: 0 });
-const startPan = ref({ x: 0, y: 0 });
+const mapStyle = computed(() => {
+    const blackCrosshair = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='1' x2='12' y2='23'></line><line x1='1' y1='12' x2='23' y2='12'></line></svg>") 12 12, crosshair`;
 
-// --- Logic Drag (Geser) ---
+    return {
+        transform: `translate(${offset.value.x}px, ${offset.value.y}px) scale(${zoomLevel.value})`,
+        cursor: isDragging.value 
+            ? 'grabbing' // Default browser
+            : (selectedRoom.value && !isClosed.value ? blackCrosshair : 'grab')
+    };
+});
+
 const handleMouseDown = (event) => {
-    // Tombol 0 = Kiri, Tombol 1 = Tengah (Scroll)
-    // Bisa drag jika klik tengah, ATAU klik kiri tapi tidak sedang pilih ruangan
+    // Drag aktif jika: Klik tengah OR (Klik kiri DAN tidak sedang menggambar/pilih ruangan)
     if (event.button === 1 || (event.button === 0 && !selectedRoom.value)) {
         isDragging.value = true;
         startPan.value = { 
             x: event.clientX - offset.value.x, 
             y: event.clientY - offset.value.y 
         };
-        document.body.style.cursor = 'grabbing';
         event.preventDefault();
     }
 };
@@ -51,22 +57,8 @@ const handleMouseMove = (event) => {
     };
 };
 
-const stopDragging = () => {
-    if (isDragging.value) {
-        isDragging.value = false;
-        document.body.style.cursor = 'default';
-    }
-};
+const stopDragging = () => { isDragging.value = false; };
 
-// Pastikan drag berhenti jika mouse lepas di luar jendela browser
-onMounted(() => {
-    window.addEventListener('mouseup', stopDragging);
-});
-onUnmounted(() => {
-    window.removeEventListener('mouseup', stopDragging);
-});
-
-// --- Logic Zoom ---
 const handleWheel = (event) => {
     event.preventDefault();
     const zoomSpeed = 0.1;
@@ -82,26 +74,20 @@ const resetZoom = () => {
     offset.value = { x: 0, y: 0 };
 };
 
-// --- Logic Mapping (Klik Titik) ---
+// --- Mapping Logic ---
 const handleMapClick = (event) => {
-    // Jika sedang drag, jangan anggap sebagai klik mapping
     if (isDragging.value || !selectedRoom.value || isClosed.value) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
-    
-    // Hitung posisi klik relatif terhadap ukuran gambar saat ini
     const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
     const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
 
-    // Cek jika klik dekat dengan titik awal untuk menutup bidang
+    // Menutup polygon jika klik kembali ke titik awal
     if (form.coordinates.length >= 3) {
         const firstPoint = form.coordinates[0];
-        const distance = Math.sqrt(
-            Math.pow(xPercent - firstPoint.x, 2) + 
-            Math.pow(yPercent - firstPoint.y, 2)
-        );
+        const distance = Math.sqrt(Math.pow(xPercent - firstPoint.x, 2) + Math.pow(yPercent - firstPoint.y, 2));
 
-        if (distance < 2 / zoomLevel.value) {
+        if (distance < (2 / zoomLevel.value)) {
             isClosed.value = true;
             return;
         }
@@ -113,11 +99,18 @@ const handleMapClick = (event) => {
     });
 };
 
-// --- CRUD & UI Helpers ---
 const selectRoom = (room) => {
+    // Fitur UNSELECT: Jika klik ruangan yang sama, batalkan pilihan
+    if (selectedRoom.value?.id === room.id) {
+        selectedRoom.value = null;
+        form.reset();
+        isClosed.value = false;
+        return;
+    }
+
     selectedRoom.value = room;
     form.room_id = room.id;
-    if (room.coordinates && Array.isArray(room.coordinates) && room.coordinates.length > 0) {
+    if (room.coordinates?.length > 0) {
         form.coordinates = JSON.parse(JSON.stringify(room.coordinates));
         isClosed.value = true;
     } else {
@@ -147,6 +140,9 @@ const hexToRgba = (hex, opacity) => {
     let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
+
+onMounted(() => window.addEventListener('mouseup', stopDragging));
+onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
 </script>
 
 <template>
@@ -159,7 +155,7 @@ const hexToRgba = (hex, opacity) => {
                     <ChevronLeft class="w-5 h-5 text-black" />
                 </Link>
                 <div>
-                    <h2 class="font-bold text-lg text-gray-800 leading-tight">Pemetaan Area</h2>
+                    <h2 class="font-bold text-lg text-gray-800 leading-tight">Pemetaan Area Ruangan</h2>
                     <p class="text-xs text-gray-500">Lantai: {{ floor.name }}</p>
                 </div>
             </div>
@@ -171,7 +167,7 @@ const hexToRgba = (hex, opacity) => {
             </div>
         </template>
 
-        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-160px)] p-2">
+        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)] p-2">
             <div class="w-full lg:w-72 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
                 <div class="p-4 bg-gray-50 border-b font-bold text-gray-700 flex items-center gap-2">
                     <Box class="w-4 h-4 text-indigo-500" /> Daftar Ruangan
@@ -181,26 +177,29 @@ const hexToRgba = (hex, opacity) => {
                     <button 
                         v-for="room in floor.rooms" :key="room.id" @click="selectRoom(room)"
                         :class="['w-full text-left px-4 py-3 rounded-xl text-sm border flex justify-between items-center transition-all shadow-sm',
-                                  selectedRoom?.id === room.id ? 'bg-indigo-50 border-indigo-200 text-indigo-700 ring-2 ring-indigo-500/10' : 'bg-white border-gray-100 text-gray-600 hover:border-indigo-200']"
+                                  selectedRoom?.id === room.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-500/10' : 'bg-white border-gray-100 text-gray-600 hover:border-indigo-200']"
                     >
                         <div class="flex items-center gap-3">
                             <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: room.color }"></div>
                             <span class="font-medium">{{ room.name }}</span>
                         </div>
-                        <CheckCircle2 v-if="room.coordinates?.length > 0" class="w-4 h-4 text-green-500" />
+                        <div class="flex items-center gap-2">
+                            <CheckCircle2 v-if="room.coordinates?.length > 0" class="w-4 h-4 text-green-500" />
+                            <X v-if="selectedRoom?.id === room.id" class="w-4 h-4 text-indigo-400" />
+                        </div>
                     </button>
                 </div>
 
                 <div v-if="selectedRoom" class="p-4 bg-gray-50 border-t space-y-3">
                     <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-gray-400">
                         <span>Status:</span>
-                        <span :class="isClosed ? 'text-green-600' : 'text-orange-500'">{{ isClosed ? 'Terkunci' : 'Proses Gambar' }}</span>
+                        <span :class="isClosed ? 'text-green-600' : 'text-orange-500'">{{ isClosed ? 'Area Terkunci' : 'Proses Gambar' }}</span>
                     </div>
                     <div class="flex gap-2">
-                        <button @click="undoLastPoint" class="flex-1 bg-white border border-gray-200 p-2 rounded-lg text-xs font-semibold hover:bg-gray-100 flex items-center justify-center gap-1">
+                        <button @click="undoLastPoint" class="flex-1 bg-white border border-gray-200 p-2 rounded-lg text-xs font-semibold hover:bg-gray-100 flex items-center justify-center gap-1 transition-colors">
                             <Undo2 class="w-3 h-3"/> Undo
                         </button>
-                        <button @click="resetPoints" class="flex-1 bg-white border border-red-100 text-red-500 p-2 rounded-lg text-xs font-semibold hover:bg-red-50 flex items-center justify-center gap-1">
+                        <button @click="resetPoints" class="flex-1 bg-white border border-red-100 text-red-500 p-2 rounded-lg text-xs font-semibold hover:bg-red-50 flex items-center justify-center gap-1 transition-colors">
                             <RotateCcw class="w-3 h-3"/> Reset
                         </button>
                     </div>
@@ -218,18 +217,14 @@ const hexToRgba = (hex, opacity) => {
                 @wheel="handleWheel"
             >
                 <div class="absolute top-6 right-6 z-50 flex flex-col gap-2">
-                    <button @click="zoomLevel = Math.min(zoomLevel + 0.5, 5)" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 transition-colors text-gray-600"><ZoomIn/></button>
-                    <button @click="resetZoom" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 transition-colors text-gray-600"><Maximize/></button>
-                    <button @click="zoomLevel = Math.max(zoomLevel - 0.5, 0.4)" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 transition-colors text-gray-600"><ZoomOut/></button>
+                    <button @click="zoomLevel = Math.min(zoomLevel + 0.5, 5)" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 text-gray-600 transition-transform active:scale-95"><ZoomIn/></button>
+                    <button @click="resetZoom" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 text-gray-600 transition-transform active:scale-95"><Maximize/></button>
+                    <button @click="zoomLevel = Math.max(zoomLevel - 0.5, 0.4)" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 text-gray-600 transition-transform active:scale-95"><ZoomOut/></button>
                 </div>
 
                 <div 
-                    class="relative inline-block bg-white shadow-2xl rounded-lg overflow-hidden select-none"
-                    :style="{ 
-                        transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoomLevel})`,
-                        transition: isDragging ? 'none' : 'transform 0.15s ease-out',
-                        cursor: isDragging ? 'grabbing' : (selectedRoom ? 'crosshair' : 'grab')
-                    }"
+                    class="relative inline-block bg-white shadow-2xl rounded-sm overflow-hidden select-none"
+                    :style="mapStyle"
                 >
                     <div class="relative flex" @click="handleMapClick">
                         <img 
@@ -239,15 +234,14 @@ const hexToRgba = (hex, opacity) => {
                         />
                         
                         <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="absolute top-0 left-0 w-full h-full pointer-events-none">
-                            <g v-for="room in floor.rooms" :key="'room-'+room.id">
-                                <polygon 
-                                    v-if="room.coordinates?.length > 0 && selectedRoom?.id !== room.id"
-                                    :points="room.coordinates.map(p => `${p.x},${p.y}`).join(' ')"
-                                    :fill="hexToRgba(room.color, 0.2)" 
-                                    :stroke="room.color" 
-                                    stroke-width="0.15" 
-                                />
-                            </g>
+                            <polygon 
+                                v-for="room in floor.rooms" :key="'room-'+room.id"
+                                v-show="room.coordinates?.length > 0 && selectedRoom?.id !== room.id"
+                                :points="room.coordinates?.map(p => `${p.x},${p.y}`).join(' ')"
+                                :fill="hexToRgba(room.color, 0.2)" 
+                                :stroke="room.color" 
+                                stroke-width="0.15" 
+                            />
 
                             <g v-if="form.coordinates.length > 0">
                                 <component 
@@ -281,13 +275,10 @@ const hexToRgba = (hex, opacity) => {
 </template>
 
 <style scoped>
-/* Menghilangkan seleksi teks/gambar saat dragging */
 .select-none {
     user-select: none;
     -webkit-user-drag: none;
 }
-
-/* Memastikan transisi smooth tapi tidak mengganggu dragging */
 svg {
     display: block;
     will-change: transform;

@@ -5,6 +5,9 @@ use App\Http\Controllers\BuildingController;
 use App\Http\Controllers\FloorController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\AssetMappingController;
+use App\Http\Controllers\P3kController;
+use App\Http\Controllers\AparController;
+use App\Http\Controllers\HydrantController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -24,13 +27,18 @@ Route::middleware('auth')->group(function () {
     Route::resource('floors', App\Http\Controllers\FloorController::class);
     Route::get('/floors/{floor}/mapping', [FloorController::class, 'mapping'])->name('floors.mapping');
 
-    Route::post('/rooms/update-coordinates', [RoomController::class, 'updateCoordinates'])->name('rooms.update-coordinates');
+    Route::post('/assets/{type}/update-location', [AssetMappingController::class, 'updateLocation'])
+        ->name('assets.update-location');
     Route::resource('rooms', App\Http\Controllers\RoomController::class);
 
     Route::get('/mapping/assets/{floor}', [AssetMappingController::class, 'index'])
         ->name('assets.mapping');
     Route::post('/mapping/assets/update', [AssetMappingController::class, 'updateLocation'])
         ->name('assets.update-location');
+
+    Route::resource('p3ks', App\Http\Controllers\P3kController::class);
+    Route::resource('apars', App\Http\Controllers\AparController::class);
+    Route::resource('hydrants', App\Http\Controllers\HydrantController::class);
 });
 
 require __DIR__.'/auth.php';

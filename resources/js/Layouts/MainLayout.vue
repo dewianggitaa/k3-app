@@ -9,6 +9,7 @@ import {
     Building2,
     Layers,
     DoorOpen,
+    Box,
     Menu 
 } from 'lucide-vue-next';
 
@@ -33,7 +34,8 @@ const menuItems = [
         children: [
             { name: 'Data Gedung', route: 'buildings.index', icon: Building2 }, 
             { name: 'Data Lantai', route: 'floors.index', icon: Layers }, 
-            { name: 'Data Ruangan/Area', route: 'rooms.index', icon: DoorOpen }, 
+            { name: 'Data Ruangan/Area', route: 'rooms.index', icon: DoorOpen },
+            { name: 'Data Asset', route: 'apars.index', icon: Box }, 
         ]
     },
     { 
