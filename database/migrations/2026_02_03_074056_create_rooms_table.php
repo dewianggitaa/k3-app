@@ -16,6 +16,7 @@ return new class extends Migration
                   ->cascadeOnDelete();
 
             $table->string('name');
+            $table->string('code')->unique();
             
             $table->json('coordinates')->nullable();
             $table->string('color')->nullable();

@@ -33,7 +33,7 @@ const menuItems = [
         children: [
             { name: 'Data Gedung', route: 'buildings.index', icon: Building2 }, 
             { name: 'Data Lantai', route: 'floors.index', icon: Layers }, 
-            { name: 'Data Ruangan', route: 'rooms.index', icon: DoorOpen }, 
+            { name: 'Data Ruangan/Area', route: 'rooms.index', icon: DoorOpen }, 
         ]
     },
     { 

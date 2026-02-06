@@ -40,6 +40,7 @@ const form = useForm({
     id: null,
     floor_id: '',
     name: '',
+    code: '',
     color: '#3b82f6',
 });
 
@@ -141,6 +142,7 @@ const deleteRoom = (id, name) => {
 const columns = [
     { label: 'No', key: 'no', class: 'w-12 text-center' },
     { label: 'Lokasi (Gedung - Lantai)', key: 'location', class: 'w-64' },
+    { label: 'Kode Ruangan', key: 'code', class: 'font-medium'},
     { label: 'Nama Ruangan', key: 'name', class: 'font-medium' },
     { label: 'Warna', key: 'color', class: 'w-24 text-center' },
     { label: 'Status Mapping', key: 'coordinates', class: 'w-48 text-center' },
@@ -189,9 +191,15 @@ const columns = [
                     </div>
                 </template>
 
-                <template #cell-name="{ item }">
+                <template #cell-code="{ item }">
                     <div class="flex items-center gap-2">
                         <div class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: item.color || '#ddd' }"></div>
+                        <span class="text-sm text-gray-700">{{ item.code }}</span>
+                    </div>
+                </template>
+                
+                <template #cell-name="{ item }">
+                    <div class="flex items-center gap-2">
                         <span class="text-sm text-gray-700">{{ item.name }}</span>
                     </div>
                 </template>
@@ -264,6 +272,18 @@ const columns = [
                             </option>
                         </select>
                         <InputError :message="form.errors.floor_id" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel value="Kode Ruangan" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
+                        <TextInput 
+                            v-model="form.code"
+                            type="text"
+                            class="w-full"
+                            placeholder="Contoh: Ruang Lab AI"
+                            required
+                        />
+                        <InputError :message="form.errors.name" class="mt-1" />
                     </div>
 
                     <div>

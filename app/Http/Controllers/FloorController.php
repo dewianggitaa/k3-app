@@ -28,6 +28,7 @@ class FloorController extends Controller
                         })
                         ->paginate(10)
                         ->withQueryString(),
+            'buildings' => Building::all(),
             'filters' => $request->only(['search']),
         ]);
     }
@@ -37,7 +38,7 @@ class FloorController extends Controller
         $validated = $request->validate([
             'building_id' => 'required|exists:buildings,id',
             'name' => 'required|string|max:255',
-            'map_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', // max 2MB
+            'map_image' => 'nullable|image|mimes:jpeg,png,jpg', 
         ]);
 
         if ($request->hasFile('map_image')) {
@@ -52,10 +53,7 @@ class FloorController extends Controller
 
         $floor = Floor::create($validated);
         
-        return response()->json([
-            'message' => 'Floor created with map', 
-            'data' => $floor
-        ], 201);
+        return redirect()->back()->with('message', 'Mantap! Data berhasil dibuat.');
     }
 
     public function show($id)
@@ -72,26 +70,21 @@ class FloorController extends Controller
         $validated = $request->validate([
             'building_id' => 'required|exists:buildings,id',
             'name' => 'required|string|max:255',
-            'map_image' => 'nullable|image|mimes:jpeg,png,jpg|max:2048', 
+            'map_image' => 'nullable|image|mimes:jpeg,png,jpg', 
         ]);
 
         if ($request->hasFile('map_image')) {
-            // 1. Definisikan file dulu (biar getRealPath() gak error)
             $file = $request->file('map_image');
             
-            // 2. Ambil dimensi gambar
             $imageSize = getimagesize($file->getRealPath());
             
-            // 3. Hapus foto lama kalau ada
             if ($floor->map_image_path) {
                 Storage::disk('public')->delete('floors/' . $floor->map_image_path);
             }
 
-            // 4. Proses simpan
             $filename = time() . '_' . $file->getClientOriginalName();
             $file->storeAs('floors', $filename, 'public');
             
-            // 5. Masukkan ke array validated sesuai nama kolom di migration lu
             $validated['map_image_path'] = $filename;
             $validated['map_width'] = $imageSize[0];  // index 0 itu lebar
             $validated['map_height'] = $imageSize[1]; // index 1 itu tinggi

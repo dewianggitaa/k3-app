@@ -42,11 +42,12 @@ class RoomController extends Controller
         $validated = $request->validate([
             'floor_id' => 'required|exists:floors,id',
             'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:rooms,code',
             'color' => 'nullable|string|max:50',
         ]);
 
         $room = Room::create($validated);
-        return response()->json(['message' => 'Room created', 'data' => $room], 201);
+        return redirect()->back();
     }
 
     public function show($id)
@@ -58,21 +59,17 @@ class RoomController extends Controller
 
     public function update(Request $request, $id)
     {
-        // 1. Cari datanya
         $room = Room::findOrFail($id);
 
-        // 2. Validasi (Ganti required biar pasti terisi)
         $validated = $request->validate([
             'floor_id' => 'required|exists:floors,id',
             'name'     => 'required|string|max:255',
+            'code'     => 'required|string|max:50|unique:rooms,code,' . $room->id,
             'color'    => 'nullable|string|max:50',
         ]);
 
-        // 3. Update data
         $room->update($validated);
 
-        // 4. Redirect Back (WAJIB buat Inertia)
-        // Inertia bakal otomatis baca ini sebagai sukses dan trigger onSuccess di Vue
         return redirect()->back();
     }
 

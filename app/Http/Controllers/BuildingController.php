@@ -26,6 +26,7 @@ class BuildingController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:buildings,code',
         ]);
 
         Building::create($validated);
@@ -38,6 +39,7 @@ class BuildingController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:buildings,code,' . $building->id,
         ]);
 
         $building->update($validated);

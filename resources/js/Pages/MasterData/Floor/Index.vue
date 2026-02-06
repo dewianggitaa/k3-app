@@ -16,11 +16,10 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 
 const props = defineProps({
     floors: Object,
-    buildings: Array, // Pastikan ini dikirim dari FloorController@index
+    buildings: Array,
     filters: Object,
 });
 
-// --- Modal & Form State ---
 const showModal = ref(false);
 const editMode = ref(false);
 const targetId = ref(null);
