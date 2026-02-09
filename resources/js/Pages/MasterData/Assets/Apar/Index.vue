@@ -31,7 +31,6 @@ const showModal = ref(false);
 const isEditing = ref(false);
 
 const form = useForm({
-    id: null,
     code: '',
     apar_type_id: '',
     room_id: '',

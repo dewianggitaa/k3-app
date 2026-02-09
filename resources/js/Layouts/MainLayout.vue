@@ -10,7 +10,9 @@ import {
     Layers,
     DoorOpen,
     Box,
-    Menu 
+    Menu,
+    CalendarClock,
+    ClipboardCheck, 
 } from 'lucide-vue-next';
 
 import ThemeToggle from '@/Components/ThemeToggle.vue'; 
@@ -35,8 +37,13 @@ const menuItems = [
             { name: 'Data Gedung', route: 'buildings.index', icon: Building2 }, 
             { name: 'Data Lantai', route: 'floors.index', icon: Layers }, 
             { name: 'Data Ruangan/Area', route: 'rooms.index', icon: DoorOpen },
-            { name: 'Data Asset', route: 'apars.index', icon: Box }, 
+            { name: 'Data Asset', route: 'apars.index', icon: Box },
         ]
+    },
+    {
+        name: 'Manajemen Jadwal',
+        icon: CalendarClock,
+        route: 'schedules.index',
     },
     { 
         name: 'Logout', 

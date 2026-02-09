@@ -6,12 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles; // <--- Tambahkan Library Spatie
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasRoles; // <--- Tambahkan Trait HasRoles
+    use HasFactory, Notifiable, HasRoles;
 
     protected $fillable = [
         'name',
@@ -32,23 +31,23 @@ class User extends Authenticatable
     {
         return [
             'password' => 'hashed',
-            'is_active' => 'boolean', // Casting agar jadi true/false, bukan 1/0
+            'is_active' => 'boolean',
         ];
     }
 
-    /**
-     * Relasi: User milik satu Department
-     */
+
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
     }
 
-    /**
-     * Relasi: User memiliki satu Position (Jabatan Struktural)
-     */
     public function position(): BelongsTo
     {
         return $this->belongsTo(Position::class);
+    }
+
+        public function inspections(): HasMany
+    {
+        return $this->hasMany(Inspection::class, 'completed_by');
     }
 }

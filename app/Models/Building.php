@@ -23,4 +23,9 @@ class Building extends Model
     {
         return $this->hasManyThrough(Room::class, Floor::class);
     }
+
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class);
+    }
 }

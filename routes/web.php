@@ -8,6 +8,8 @@ use App\Http\Controllers\AssetMappingController;
 use App\Http\Controllers\P3kController;
 use App\Http\Controllers\AparController;
 use App\Http\Controllers\HydrantController;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\InspectionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -41,6 +43,9 @@ Route::middleware('auth')->group(function () {
     Route::resource('p3ks', App\Http\Controllers\P3kController::class);
     Route::resource('apars', App\Http\Controllers\AparController::class);
     Route::resource('hydrants', App\Http\Controllers\HydrantController::class);
+
+    Route::resource('schedules', App\Http\Controllers\ScheduleController::class);
+    Route::resource('inspections', App\Http\Controllers\InspectionController::class);
 });
 
 require __DIR__.'/auth.php';
