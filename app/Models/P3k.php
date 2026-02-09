@@ -9,10 +9,10 @@ class P3k extends Model
     protected $guarded = [];
 
     protected $casts = [
-        'location_data' => 'json',
+        'location_data' => 'array',
     ];
 
-    public function type()
+    public function p3k_type()
     {
         return $this->belongsTo(P3kType::class, 'p3k_type_id');
     }

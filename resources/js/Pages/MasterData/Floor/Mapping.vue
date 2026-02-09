@@ -124,7 +124,7 @@ const resetPoints = () => { form.coordinates = []; isClosed.value = false; };
 
 const submitMapping = () => {
     if (!isClosed.value || form.coordinates.length < 3) return;
-    form.post(route('rooms.update-coordinates'), {
+    form.put(route('rooms.update-coordinates'), {
         preserveScroll: true,
         onSuccess: () => {
             selectedRoom.value = null;

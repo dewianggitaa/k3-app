@@ -13,7 +13,7 @@ return new class extends Migration
             $table->id();
             $table->string("code")->unique();
             $table->foreignId("p3k_type_id")->constrained('p3k_types');
-            $table->foreignId('room_id')->constrained('floors');
+            $table->foreignId('room_id')->constrained('rooms');
             $table->json('location_data')->nullable();
             $table->timestamps();
             $table->enum('status', ['safe', 'warning', 'critical'])->default('safe');

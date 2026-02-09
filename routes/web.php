@@ -29,6 +29,8 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/assets/{type}/update-location', [AssetMappingController::class, 'updateLocation'])
         ->name('assets.update-location');
+    
+    Route::put('/rooms/update-coordinates', [RoomController::class, 'updateCoordinates'])->name('rooms.update-coordinates');
     Route::resource('rooms', App\Http\Controllers\RoomController::class);
 
     Route::get('/mapping/assets/{floor}', [AssetMappingController::class, 'index'])
