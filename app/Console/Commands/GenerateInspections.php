@@ -11,19 +11,16 @@ use Illuminate\Support\Facades\DB;
 class GenerateInspections extends Command
 {
     protected $signature = 'inspections:generate';
-    protected $description = 'Generate tugas inspeksi rutin dengan dukungan assign_type (K3/PIC)';
+    protected $description = 'Generate tugas inspeksi berdasarkan Aturan Jadwal (Rule-Based)';
 
     public function handle()
     {
-        // Paksa timezone ke Jakarta agar tidak ikut jam UTC Docker
         $timezone = 'Asia/Jakarta';
         $today = Carbon::now($timezone)->startOfDay();
 
-        $this->info("Robot jalan pada: " . Carbon::now($timezone)->toDateTimeString());
+        $this->info("Robot mulai bekerja: " . Carbon::now($timezone)->toDateTimeString());
 
-        // Cari jadwal yang sudah jatuh tempo
-        // UPDATE: Tambahkan 'with' untuk mengambil relasi asset dan room sekaligus (Optimasi Query)
-        $schedules = Schedule::with(['asset.room'])
+        $schedules = Schedule::with('buildings')
             ->whereDate('next_run_date', '<=', $today)
             ->get();
 
@@ -35,65 +32,84 @@ class GenerateInspections extends Command
         foreach ($schedules as $schedule) {
             DB::beginTransaction();
             try {
-                // Gunakan timezone Jakarta saat parsing tanggal dari DB
-                $baseMonth = Carbon::parse($schedule->next_run_date, $timezone)->startOfMonth();
+                $modelClass = $schedule->asset_type;
                 
-                // LOGIKA DUE DATE: Akhir bulan sesuai interval
-                $endOfInterval = $baseMonth->copy()
-                    ->addMonths($schedule->months_interval - 1)
-                    ->endOfMonth();
-
-                if (is_null($schedule->week_rank)) {
-                    // JADWAL BEBAS
-                    $startDate = $baseMonth->copy();
-                    $dueDate   = $endOfInterval;
-                } else {                    
-                    // JADWAL PER MINGGU
-                    $dayMap = [
-                        1 => [1, 7],
-                        2 => [8, 14],
-                        3 => [15, 21],
-                        4 => [22, $baseMonth->copy()->endOfMonth()->day]
-                    ];
-
-                    $range = $dayMap[$schedule->week_rank] ?? [1, 7];
-                    $startDate = $baseMonth->copy()->day($range[0]);
-                    $dueDate   = $baseMonth->copy()->day($range[1]);
+                if (!class_exists($modelClass)) {
+                    throw new \Exception("Model aset tidak ditemukan: $modelClass");
                 }
 
-                // ============================================================
-                // LOGIC BARU: MENENTUKAN SIAPA YANG MENGERJAKAN (USER_ID)
-                // ============================================================
-                $assignedUserId = null; // Default NULL (Untuk tipe 'k3')
+                $query = $modelClass::with('room');
 
-                if ($schedule->assign_type === 'pic') {
-                    // Cek apakah aset punya ruangan, dan ruangan punya PIC
-                    // Asumsi: Relasi di model Schedule adalah belongsTo Asset ('asset')
-                    $room = $schedule->asset->room ?? null;
-
-                    if ($room && $room->pic_area_id) {
-                        $assignedUserId = $room->pic_area_id;
-                        $this->comment(" -> Assign ke PIC: ID $assignedUserId");
-                    } else {
-                        // Jika tipe PIC tapi datanya kosong, beri peringatan di log
-                        $this->warn(" -> Warning: Jadwal ID {$schedule->id} tipe PIC, tapi ruangan tidak punya PIC. Masuk ke Pool K3.");
+                if ($schedule->scope === 'building') {
+                    $buildingIds = $schedule->buildings->pluck('id')->toArray();
+                    
+                    if (!empty($buildingIds)) {
+                        $query->whereHas('room.floor', function($q) use ($buildingIds) {
+                            $q->whereIn('building_id', $buildingIds);
+                        });
                     }
                 }
-                // ============================================================
 
-                Inspection::create([
-                    'schedule_id'    => $schedule->id,
-                    'assetable_type' => $schedule->assetable_type,
-                    'assetable_id'   => $schedule->assetable_id,
-                    'status'         => 'pending',
-                    'schedule_date'  => $startDate,
-                    'due_date'       => $dueDate,
-                    // Masukkan hasil logic di atas
-                    'user_id'        => $assignedUserId, 
-                ]);
+                $assets = $query->get();
+                $countCreated = 0;
 
-                // Hitung jadwal berikutnya
-                $nextRun = $baseMonth->copy()->addMonthsNoOverflow($schedule->months_interval);
+                foreach ($assets as $asset) {
+                    
+                    $targetUserId = null;
+
+                    if ($schedule->assign_type === 'pic') {
+                        // Cek apakah aset punya ruangan & ruangan punya PIC
+                        if ($asset->room && $asset->room->pic_user_id) {
+                            $targetUserId = $asset->room->pic_user_id;
+                        } 
+                    }
+
+                    // --- LOGIC TANGGAL ---
+                    $baseMonth = Carbon::parse($schedule->next_run_date, $timezone)->startOfMonth();
+                    $endOfInterval = $baseMonth->copy()->addMonths($schedule->months_interval - 1)->endOfMonth();
+
+                    if (is_null($schedule->week_rank)) {
+                        $startDate = $baseMonth->copy();
+                        $dueDate   = $endOfInterval;
+                    } else {
+                        $dayMap = [
+                            1 => [1, 7],
+                            2 => [8, 14],
+                            3 => [15, 21],
+                            4 => [22, $baseMonth->copy()->endOfMonth()->day]
+                        ];
+                        $range = $dayMap[$schedule->week_rank] ?? [1, 7];
+                        $startDate = $baseMonth->copy()->day($range[0]);
+                        $dueDate   = $baseMonth->copy()->day($range[1]);
+                    }
+
+                    // --- BUAT INSPEKSI ---
+                    // Cek duplikasi dulu biar gak double entry di bulan yang sama
+                    $exists = Inspection::where('schedule_id', $schedule->id)
+                        ->where('assetable_type', $schedule->asset_type)
+                        ->where('assetable_id', $asset->id)
+                        ->whereMonth('schedule_date', $startDate->month)
+                        ->whereYear('schedule_date', $startDate->year)
+                        ->exists();
+
+                    if (!$exists) {
+                        Inspection::create([
+                            'schedule_id'    => $schedule->id,
+                            'assetable_type' => $schedule->asset_type,
+                            'assetable_id'   => $asset->id,
+                            'status'         => 'pending',
+                            'schedule_date'  => $startDate,
+                            'due_date'       => $dueDate,
+                            // Masukkan ID PIC (atau NULL)
+                            'user_id'        => $targetUserId, 
+                        ]);
+                        $countCreated++;
+                    }
+                }
+
+                // 4. UPDATE JADWAL UTAMA
+                $nextRun = Carbon::parse($schedule->next_run_date, $timezone)
+                            ->addMonthsNoOverflow($schedule->months_interval);
 
                 $schedule->update([
                     'last_run_at'   => Carbon::now($timezone),
@@ -101,14 +117,14 @@ class GenerateInspections extends Command
                 ]);
 
                 DB::commit();
-                $this->info("Sukses: ID {$schedule->id} ({$schedule->assign_type}) -> Next: {$nextRun->toDateString()}");
+                $this->info("Jadwal ID {$schedule->id}: Berhasil generate $countCreated tugas. Next: {$nextRun->toDateString()}");
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                $this->error("Gagal pada ID {$schedule->id}: " . $e->getMessage());
+                $this->error("Gagal pada Jadwal ID {$schedule->id}: " . $e->getMessage());
             }
         }
-
-        $this->info('Semua tugas berhasil diproses.');
+        
+        $this->info('Selesai.');
     }
 }

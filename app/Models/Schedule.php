@@ -15,18 +15,16 @@ class Schedule extends Model
         'last_run_at'   => 'datetime',
     ];
 
-    public function assetable(): MorphTo
-    {
-        return $this->morphTo();
-    }
+    
 
     public function inspections(): HasMany
     {
         return $this->hasMany(Inspection::class);
     }
 
-    public function building()
+    public function buildings()
     {
-        return $this->belongsTo(Building::class);
+        return $this->belongsToMany(Building::class, 'building_schedule');
     }
+
 }

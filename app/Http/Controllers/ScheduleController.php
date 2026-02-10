@@ -10,15 +10,21 @@ use Illuminate\Support\Facades\Artisan;
 
 class ScheduleController extends Controller
 {
-
-    public function index()
+    public function index(Request $request)
     {
+        $query = Schedule::with('buildings');
+
+        if ($request->search) {
+            $query->where('asset_type', 'like', '%' . $request->search . '%');
+        }
+
         return Inertia::render('Schedules/Index', [
-            'schedules' => Schedule::with('assetable.room.floor.building')
-                ->latest()
-                ->paginate(10),
+            'schedules' => $query->latest()
+                ->paginate(10)
+                ->withQueryString(),
 
             'buildings' => Building::select('id', 'name')->orderBy('name')->get(),
+            'filters'   => $request->only(['search']),
         ]);
     }
 
@@ -35,96 +41,65 @@ class ScheduleController extends Controller
             'assign_type'     => 'required|in:k3,pic'
         ]);
 
-        $modelClass = $request->asset_type;
-        $assetsToSchedule = collect();
+        $schedule = Schedule::create([
+            'asset_type'      => $request->asset_type,
+            'scope'           => $request->scope,
+            'months_interval' => $request->months_interval,
+            'week_rank'       => $request->week_rank,
+            'assign_type'     => $request->assign_type,
+            'next_run_date'   => $request->start_date,
+        ]);
 
-        if ($request->scope === 'global') {
-            $assetsToSchedule = $modelClass::all();
-        } 
-        elseif ($request->scope === 'building') {
-            $assetsToSchedule = $modelClass::whereHas('room.floor', function ($query) use ($request) {
-                $query->whereIn('building_id', $request->building_ids);
-            })->get();
-        }
-
-        $countSuccess = 0;
-        $countSkipped = 0;
-
-        foreach ($assetsToSchedule as $asset) {
-            
-            $exists = Schedule::where('assetable_type', $request->asset_type)
-                              ->where('assetable_id', $asset->id)
-                              ->exists();
-
-            if (!$exists) {
-
-                $buildingId = $asset->room->floor->building_id ?? null;
-
-                Schedule::create([
-                    'assetable_type'  => $request->asset_type,
-                    'assetable_id'    => $asset->id,
-                    'building_id'     => $buildingId,
-                    'months_interval' => $request->months_interval,
-                    'week_rank'       => $request->week_rank,
-                    'assign_type'     => $request->assign_type,
-                    'next_run_date'   => $request->start_date,
-                ]);
-
-                $countSuccess++;
-            } else {
-                $countSkipped++;
-            }
-        }
-
-        $message = "Berhasil membuat $countSuccess jadwal baru.";
-        if ($countSkipped > 0) {
-            $message .= " ($countSkipped aset dilewati karena sudah punya jadwal).";
+        if ($request->scope === 'building' && $request->building_ids) {
+            $schedule->buildings()->attach($request->building_ids);
         }
 
         Artisan::call('inspections:generate');
 
         return redirect()->route('schedules.index')
-        ->with('success', "Jadwal berhasil dibuat & Robot sudah memproses tugas inspeksi!");
+            ->with('success', "Aturan Jadwal berhasil dibuat! Robot sedang memproses tugas inspeksi...");
     }
 
     public function update(Request $request, $id)
     {
-        // 1. Cari Jadwal yang mau diedit
         $schedule = Schedule::findOrFail($id);
 
-        // 2. Validasi Input
-        // Kita tidak validasi 'scope' atau 'asset_type' karena target aset tidak boleh berubah saat edit.
         $request->validate([
             'months_interval' => 'required|integer|min:1',
-            'week_rank'       => 'nullable|integer|min:1|max:4', // 1-4 atau Null
-            'start_date'      => 'required|date', // Di form frontend namanya 'start_date'
+            'week_rank'       => 'nullable|integer|min:1|max:4',
+            'start_date'      => 'required|date',
+            'assign_type'     => 'required|in:k3,pic',
+            'scope'           => 'required|in:global,building',
+            'building_ids'    => 'required_if:scope,building|array',
         ]);
 
-        // 3. Update Database
         $schedule->update([
             'months_interval' => $request->months_interval,
             'week_rank'       => $request->week_rank,
-            
-            // Kita update next_run_date sesuai input baru user.
-            // Misal: Awalnya 1 Maret, user mau majuin jadi 9 Feb (Hari ini).
+            'assign_type'     => $request->assign_type,
+            'scope'           => $request->scope,
             'next_run_date'   => $request->start_date, 
         ]);
 
-        // 4. Panggil Robot (PENTING!)
-        // Kenapa? Karena jika user mengubah tanggal 'Next Run' menjadi HARI INI,
-        // robot harus langsung membuat tugas inspeksinya sekarang juga.
+        if ($request->scope === 'building') {
+            $schedule->buildings()->sync($request->building_ids);
+        } else {
+            $schedule->buildings()->detach();
+        }
+
         Artisan::call('inspections:generate');
 
         return redirect()->route('schedules.index')
-            ->with('success', 'Aturan jadwal berhasil diperbarui. Robot telah memproses ulang.');
+            ->with('success', 'Aturan jadwal diperbarui. Robot telah memproses ulang.');
     }
 
     public function destroy($id)
     {
         $schedule = Schedule::findOrFail($id);
+        
         $schedule->delete();
 
         return redirect()->route('schedules.index')
-            ->with('success', 'Jadwal berhasil dihapus. Robot tidak akan menjadwalkan aset ini lagi.');
+            ->with('success', 'Aturan jadwal dihapus. Robot berhenti menjadwalkan aset ini.');
     }
 }

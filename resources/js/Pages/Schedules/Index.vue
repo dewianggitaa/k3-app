@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 import { 
     Plus, Pencil, Trash2, 
     CalendarClock, Flame, Droplet, BriefcaseMedical, 
-    Repeat, Calendar, MapPin, Building, Globe, CheckSquare
+    Repeat, Calendar, MapPin, Building, Globe, CheckSquare, Users, UserCheck
 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -22,22 +22,19 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 const props = defineProps({
     schedules: Object,
     filters: Object,
-    buildings: Array, // <--- NEW: Received from Controller
+    buildings: Array,
 });
 
 const search = ref(props.filters?.search || '');
 const showModal = ref(false);
 const isEditing = ref(false);
 
-// --- FORM SETUP ---
 const form = useForm({
-    id: null,
     asset_type: 'App\\Models\\Apar', 
     months_interval: 1,
     week_rank: null, 
     start_date: new Date().toISOString().split('T')[0],
-    
-    // NEW: Logic for Bulk Selection
+    assign_type: 'k3',
     scope: 'global', // 'global' or 'building'
     building_ids: [], // Array [1, 2, 5]
 });
@@ -49,31 +46,26 @@ const toast = Swal.mixin({
     timer: 3000,
 });
 
-// Search Logic
 watch(search, debounce((value) => {
     router.get(route('schedules.index'), { search: value }, { preserveState: true, replace: true });
 }, 300));
 
-// --- MODAL LOGIC ---
 
 const openCreateModal = () => {
     isEditing.value = false;
     form.reset();
     form.clearErrors();
-    // Reset to sensible defaults
     form.scope = 'global';
     form.building_ids = [];
     showModal.value = true;
 };
 
-// Note: Edit mode usually only edits the SCHEDULE RULE, not the Scope
-// Because 'Scope' is a generator tool.
 const openEditModal = (item) => {
     isEditing.value = true;
     form.clearErrors();
     form.id = item.id;
-    form.asset_type = item.assetable_type;
-    // For single edit, we don't use scope/buildings
+    form.asset_type = item.asset_type;
+    form.assign_type= item.assign_type;
     form.months_interval = item.months_interval;
     form.week_rank = item.week_rank;
     form.start_date = item.next_run_date; 
@@ -161,74 +153,89 @@ const getAssetName = (type) => {
             <DataTable :items="schedules" :columns="columns">
                 
                 <template #cell-target="{ item }">
-                    <div class="flex items-start gap-3 py-1">
-                        <div class="p-2 rounded-lg bg-gray-50 border border-gray-100 shrink-0">
-                            <component :is="getAssetIcon(item.assetable_type)" class="w-5 h-5 text-gray-600" />
+                    <div class="flex items-start gap-3 py-2">
+                        <div class="p-2.5 rounded-xl bg-white border border-gray-200 shadow-sm shrink-0">
+                            <component :is="getAssetIcon(item.asset_type)" class="w-6 h-6 text-indigo-600" />
                         </div>
-                        <div>
-                            <div class="font-bold text-gray-800 text-sm flex items-center gap-2">
-                                {{ getAssetName(item.assetable_type) }}
-                                <span class="bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded border">
-                                    #{{ item.assetable_id }}
+                        
+                        <div class="w-full">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="font-bold text-gray-900 text-sm">
+                                    {{ getAssetName(item.asset_type) }}
+                                </span>
+                                
+                                <span v-if="item.assign_type === 'pic'" 
+                                    class="flex items-center gap-1 bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-purple-200">
+                                    <UserCheck class="w-3 h-3" /> PIC Area
+                                </span>
+                                <span v-else 
+                                    class="flex items-center gap-1 bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-200">
+                                    <Users class="w-3 h-3" /> Tim K3
                                 </span>
                             </div>
-                            <div class="text-xs text-gray-500 mt-1 flex items-start gap-1">
-                                <MapPin class="w-3 h-3 mt-0.5 shrink-0" :class="item.assetable?.room ? 'text-gray-400' : 'text-red-300'" />
-                                
-                                <div v-if="item.assetable?.room">
-                                    <span class="font-medium text-gray-700">
-                                        {{ item.assetable.room.floor?.building?.name || 'Gedung ?' }}
-                                    </span>
-                                    <span class="mx-1">/</span>
-                                    <span>
-                                        {{ item.assetable.room.name }} ({{ item.assetable.room.floor?.name || '-' }})
-                                    </span>
+
+                            <div class="flex flex-col gap-1">
+                                <div v-if="item.scope === 'global'" class="flex items-center gap-1.5 text-xs text-gray-600">
+                                    <Globe class="w-3.5 h-3.5 text-blue-500" />
+                                    <span>Berlaku untuk <b class="text-gray-800">Semua Gedung</b> (Global)</span>
                                 </div>
-                                
-                                <span v-else class="text-red-400 italic font-light">
-                                    Lokasi ruangan belum diatur
-                                </span>
+
+                                <div v-else class="flex items-start gap-1.5 text-xs text-gray-600">
+                                    <Building class="w-3.5 h-3.5 mt-0.5 text-orange-500" />
+                                    <div>
+                                        <span>Berlaku di <b class="text-gray-800">{{ item.buildings?.length || 0 }} Gedung</b>:</span>
+                                        <div class="text-[10px] text-gray-500 mt-0.5 leading-tight">
+                                            <span v-for="(b, index) in item.buildings?.slice(0, 2)" :key="b.id">
+                                                {{ b.name }}<span v-if="index < Math.min(item.buildings.length, 2) - 1">, </span>
+                                            </span>
+                                            <span v-if="item.buildings?.length > 2" class="text-orange-600 font-medium">
+                                                +{{ item.buildings.length - 2 }} lainnya
+                                            </span>
+                                            <span v-if="!item.buildings?.length" class="text-red-500 italic">Belum pilih gedung</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </template>
 
                 <template #cell-frequency="{ item }">
-                    <div class="flex flex-col gap-1.5 py-1">
-                        <div class="text-sm font-medium text-gray-800 flex items-center gap-2">
-                            <Repeat class="w-4 h-4 text-gray-400" />
-                            <span v-if="item.months_interval === 1">
-                                Diulang <span class="font-bold text-indigo-600">Setiap Bulan</span>
-                            </span>
-                            <span v-else>
-                                Diulang <span class="font-bold text-indigo-600">Setiap {{ item.months_interval }} Bulan</span>
+                    <div class="flex flex-col gap-1 py-1">
+                        <div class="text-xs font-medium text-gray-600 flex items-center gap-2">
+                            <Repeat class="w-3.5 h-3.5" />
+                            <span v-if="item.months_interval === 1">Setiap Bulan</span>
+                            <span v-else>Setiap {{ item.months_interval }} Bulan</span>
+                        </div>
+                        
+                        <div v-if="item.week_rank">
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                                Mgg ke-{{ item.week_rank }}
                             </span>
                         </div>
-                        <div class="ml-6">
-                            <div v-if="item.week_rank" 
-                                class="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                                <CalendarClock class="w-3 h-3 mr-1.5" />
-                                Target: Minggu ke-{{ item.week_rank }}
-                            </div>
+                        <div v-else>
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">
+                                Bebas / Awal Bulan
+                            </span>
                         </div>
                     </div>
                 </template>
 
                 <template #cell-next_run="{ item }">
-                    <div class="text-xs">
-                        <div class="font-mono font-semibold text-gray-800">
+                    <div class="flex flex-col">
+                        <span class="font-bold text-sm text-gray-800">
                             {{ new Date(item.next_run_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }}
-                        </div>
-                        <span class="text-[10px] text-gray-500">Auto-generate date</span>
+                        </span>
+                        <span class="text-[10px] text-gray-400">Jadwal Generate</span>
                     </div>
                 </template>
 
                 <template #cell-action="{ item }">
                     <div class="flex justify-end gap-1">
-                        <button @click="openEditModal(item)" class="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Edit Jadwal">
+                        <button @click="openEditModal(item)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Edit Aturan">
                             <Pencil class="w-4 h-4" />
                         </button>
-                        <button @click="deleteSchedule(item.id)" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Hapus Jadwal">
+                        <button @click="deleteSchedule(item.id)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Aturan">
                             <Trash2 class="w-4 h-4" />
                         </button>
                     </div>
@@ -246,6 +253,37 @@ const getAssetName = (type) => {
 
                 <form @submit.prevent="submit" class="space-y-6">
                     
+                    <div class="mt-4">
+                        <InputLabel value="Ditugaskan Kepada Siapa?" class="mb-2" />
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="cursor-pointer relative">
+                                <input type="radio" v-model="form.assign_type" value="k3" class="peer sr-only">
+                                <div class="p-3 rounded-lg border bg-white hover:bg-gray-50 transition-all peer-checked:border-blue-500 peer-checked:ring-1 peer-checked:ring-blue-500 peer-checked:bg-blue-50">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <div class="p-1.5 bg-blue-100 rounded-md text-blue-600">
+                                            <Users class="w-4 h-4" />
+                                        </div>
+                                        <span class="font-bold text-sm text-gray-800">Tim K3</span>
+                                    </div>
+                                </div>
+                            </label>
+
+                            <label class="cursor-pointer relative">
+                                <input type="radio" v-model="form.assign_type" value="pic" class="peer sr-only">
+                                <div class="p-3 rounded-lg border bg-white hover:bg-gray-50 transition-all peer-checked:border-purple-500 peer-checked:ring-1 peer-checked:ring-purple-500 peer-checked:bg-purple-50">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <div class="p-1.5 bg-purple-100 rounded-md text-purple-600">
+                                            <UserCheck class="w-4 h-4" />
+                                        </div>
+                                        <span class="font-bold text-sm text-gray-800">PIC Ruangan</span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        <InputError :message="form.errors.assign_type" class="mt-1" />
+                    </div>
+
                     <div v-if="!isEditing">
                         <InputLabel value="Jenis Aset" />
                         <div class="grid grid-cols-3 gap-3 mt-1">

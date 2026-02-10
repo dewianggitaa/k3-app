@@ -30,6 +30,6 @@ class Inspection extends Model
 
     public function executor(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'completed_by');
+        return $this->belongsTo(User::class);
     }
 }

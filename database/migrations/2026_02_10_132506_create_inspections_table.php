@@ -20,7 +20,7 @@ return new class extends Migration
             $table->date('schedule_date');
             $table->date('due_date');
             $table->dateTime('completed_at')->nullable(); 
-            $table->foreignId('completed_by')->nullable()->constrained('users');
+            $table->foreignId('user_id')->nullable()->constrained('users');
             $table->json('report_data')->nullable();
             $table->timestamps();
         });

@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('schedules', function (Blueprint $table) {
             $table->id();
-            $table->morphs('assetable');
-            $table->foreignId('building_id')->constrained();
+            $table->string('asset_type');
+            $table->enum('scope', ['global', 'building'])->default('global');
             $table->integer('months_interval')->default(1); 
             $table->tinyInteger('week_rank')->nullable();
             $table->enum('assign_type', ['k3', 'pic'])->default('k3');
@@ -19,6 +19,7 @@ return new class extends Migration
             $table->dateTime('last_run_at')->nullable();
             $table->timestamps();
         });
+
     }
 
     public function down(): void
