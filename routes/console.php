@@ -4,7 +4,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
-Schedule::command('inspections:generate')->dailyAt('01:00');
+Schedule::command('inspections:generate')->everyMinute();
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());

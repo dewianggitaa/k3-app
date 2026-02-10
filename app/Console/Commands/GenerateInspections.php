@@ -11,12 +11,17 @@ use Illuminate\Support\Facades\DB;
 class GenerateInspections extends Command
 {
     protected $signature = 'inspections:generate';
-    protected $description = 'Generate tugas inspeksi rutin berdasarkan jadwal bulanan';
+    protected $description = 'Generate tugas inspeksi rutin dengan dukungan interval multi-bulan';
 
     public function handle()
     {
-        $today = now()->startOfDay();
+        // Paksa timezone ke Jakarta agar tidak ikut jam UTC Docker
+        $timezone = 'Asia/Jakarta';
+        $today = Carbon::now($timezone)->startOfDay();
 
+        $this->info("Robot jalan pada: " . Carbon::now($timezone)->toDateTimeString());
+
+        // Cari jadwal yang sudah jatuh tempo
         $schedules = Schedule::whereDate('next_run_date', '<=', $today)->get();
 
         if ($schedules->isEmpty()) {
@@ -24,42 +29,36 @@ class GenerateInspections extends Command
             return;
         }
 
-        $this->info("Menemukan {$schedules->count()} jadwal yang harus diproses...");
-
         foreach ($schedules as $schedule) {
-            
             DB::beginTransaction();
-
             try {
-                $baseMonth = Carbon::parse($schedule->next_run_date)->startOfMonth();
+                // Gunakan timezone Jakarta saat parsing tanggal dari DB
+                $baseMonth = Carbon::parse($schedule->next_run_date, $timezone)->startOfMonth();
                 
+                // LOGIKA DUE DATE: Akhir bulan sesuai interval (Jika 2 bulan, maka akhir bulan ke-2)
+                $endOfInterval = $baseMonth->copy()
+                    ->addMonths($schedule->months_interval - 1)
+                    ->endOfMonth();
+
                 if (is_null($schedule->week_rank)) {
+                    // JADWAL BEBAS: Dari tanggal 1 sampai akhir interval
                     $startDate = $baseMonth->copy();
-                    $dueDate   = $baseMonth->copy()->endOfMonth();
-                } 
-                else {                    
-                    if ($schedule->week_rank == 1) {
-                        // Minggu 1 (Tgl 1-7)
-                        $startDate = $baseMonth->copy()->day(1);
-                        $dueDate   = $baseMonth->copy()->day(7);
-                    }
-                    elseif ($schedule->week_rank == 2) {
-                        // Minggu 2 (Tgl 8-14)
-                        $startDate = $baseMonth->copy()->day(8);
-                        $dueDate   = $baseMonth->copy()->day(14);
-                    }
-                    elseif ($schedule->week_rank == 3) {
-                        // Minggu 3 (Tgl 15-21)
-                        $startDate = $baseMonth->copy()->day(15);
-                        $dueDate   = $baseMonth->copy()->day(21);
-                    }
-                    else { 
-                        // Minggu 4 (Tgl 22 - Akhir Bulan)
-                        $startDate = $baseMonth->copy()->day(22);
-                        $dueDate   = $baseMonth->copy()->endOfMonth();
-                    }
+                    $dueDate   = $endOfInterval;
+                } else {                    
+                    // JADWAL PER MINGGU: Start/End mengikuti range minggu di bulan pertama
+                    $dayMap = [
+                        1 => [1, 7],
+                        2 => [8, 14],
+                        3 => [15, 21],
+                        4 => [22, $baseMonth->copy()->endOfMonth()->day]
+                    ];
+
+                    $range = $dayMap[$schedule->week_rank] ?? [1, 7];
+                    $startDate = $baseMonth->copy()->day($range[0]);
+                    $dueDate   = $baseMonth->copy()->day($range[1]);
                 }
 
+                // Create Inspection
                 Inspection::create([
                     'schedule_id'    => $schedule->id,
                     'assetable_type' => $schedule->assetable_type,
@@ -67,26 +66,26 @@ class GenerateInspections extends Command
                     'status'         => 'pending',
                     'schedule_date'  => $startDate,
                     'due_date'       => $dueDate,
-                    'completed_by'   => null,
-                    'report_data'    => null,
                 ]);
 
-                $nextRun = $baseMonth->copy()->addMonths($schedule->months_interval);
+                // Update Schedule untuk periode berikutnya
+                // Pakai addMonthsNoOverflow agar tgl 31 tidak loncat ke Maret jika tujuannya Februari
+                $nextRun = $baseMonth->copy()->addMonthsNoOverflow($schedule->months_interval);
 
                 $schedule->update([
-                    'last_run_at'   => now(),
+                    'last_run_at'   => Carbon::now($timezone), // Catat jam Jakarta (08:xx)
                     'next_run_date' => $nextRun
                 ]);
 
-                DB::commit(); // Simpan permanen
-                $this->info("Sukses: Jadwal ID {$schedule->id} ({$schedule->assetable_type}) -> Next: {$nextRun->toDateString()}");
+                DB::commit();
+                $this->info("Sukses: ID {$schedule->id} -> Next: {$nextRun->toDateString()}");
 
             } catch (\Exception $e) {
-                DB::rollBack(); // Batalkan kalau ada error
-                $this->error("Gagal memproses Jadwal ID {$schedule->id}: " . $e->getMessage());
+                DB::rollBack();
+                $this->error("Gagal pada ID {$schedule->id}: " . $e->getMessage());
             }
         }
 
-        $this->info('Selesai! Semua tugas berhasil digenerate.');
+        $this->info('Semua tugas berhasil diproses.');
     }
 }
