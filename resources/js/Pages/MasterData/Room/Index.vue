@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import Swal from 'sweetalert2'; // Import Swal
@@ -17,17 +17,31 @@ import TextInput from '@/Components/TextInput.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
+import Dropdown from '@/Components/Dropdown.vue'; // Sesuaikan path-nya
 
 const props = defineProps({
     rooms: Object,
     filters: Object,
     floors: Array,
+    users: Array,
 });
 
-// --- STATE & LOGIC ---
 const search = ref(props.filters.search || '');
 const showModal = ref(false);
 const isEditing = ref(false);
+
+const selectedUserLabel = computed(() => {
+    if (!form.pic_user_id) return '-- Tidak Ada / Belum Ditentukan --';
+    
+    const user = props.users.find(u => u.id === form.pic_user_id);
+    return user 
+        ? `${user.name} (${user.position?.name || 'Staff'})` 
+        : '-- User Tidak Ditemukan --';
+});
+
+const selectUser = (userId) => {
+    form.pic_user_id = userId;
+};
 
 const colorPresets = [
     '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', 
@@ -41,10 +55,10 @@ const form = useForm({
     floor_id: '',
     name: '',
     code: '',
+    pic_user_id: '',
     color: '#3b82f6',
 });
 
-// Toast Notification Helper
 const toast = Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -53,12 +67,10 @@ const toast = Swal.mixin({
     timerProgressBar: true,
 });
 
-// Search Watcher
 watch(search, debounce((value) => {
     router.get(route('rooms.index'), { search: value }, { preserveState: true, replace: true });
 }, 300));
 
-// Modal Actions
 const openCreateModal = () => {
     isEditing.value = false;
     form.reset();
@@ -70,10 +82,11 @@ const openEditModal = (room) => {
     isEditing.value = true;
     form.clearErrors();
     form.id = room.id;
-    // Pastikan floor_id sesuai tipe data (biasanya integer dari DB)
+    form.code = room.code;
     form.floor_id = room.floor_id; 
     form.name = room.name;
     form.color = room.color || '#3b82f6';
+    form.pic_user_id = room.pic_user_id;
     showModal.value = true;
 };
 
@@ -141,9 +154,10 @@ const deleteRoom = (id, name) => {
 
 const columns = [
     { label: 'No', key: 'no', class: 'w-12 text-center' },
-    { label: 'Lokasi (Gedung - Lantai)', key: 'location', class: 'w-64' },
+    { label: 'Lokasi', key: 'location', class: 'w-40' },
     { label: 'Kode Ruangan', key: 'code', class: 'font-medium'},
     { label: 'Nama Ruangan', key: 'name', class: 'font-medium' },
+    { label: 'PIC Area', key: 'pic', class: 'font-medium' },
     { label: 'Warna', key: 'color', class: 'w-24 text-center' },
     { label: 'Status Mapping', key: 'coordinates', class: 'w-48 text-center' },
     { label: '', key: 'action', class: 'w-24 text-right' },
@@ -154,7 +168,16 @@ const columns = [
     <Head title="Master Data Ruangan" />
 
     <MainLayout>
-        <template #header>Master Data Ruangan</template>
+        <template #header-title>
+            <div class="flex items-center justify-between w-full">
+                
+                <div class="flex items-center gap-4">
+                    <div>
+                        <h2 class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">Master Data Ruangan</h2>
+                    </div>
+                </div>
+            </div>
+        </template>
 
         <Card no-padding className="h-full">
             <template #header>
@@ -201,6 +224,12 @@ const columns = [
                 <template #cell-name="{ item }">
                     <div class="flex items-center gap-2">
                         <span class="text-sm text-gray-700">{{ item.name }}</span>
+                    </div>
+                </template>
+
+                <template #cell-pic="{ item }">
+                    <div class="flex items-center gap-2">
+                        {{ item.pic?.name || '-' }}
                     </div>
                 </template>
 
@@ -296,6 +325,57 @@ const columns = [
                             required
                         />
                         <InputError :message="form.errors.name" class="mt-1" />
+                    </div>
+
+                    <div>
+                        <InputLabel value="PIC Area (Penanggung Jawab)" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
+                        
+                        <Dropdown align="left" width="full" contentClasses="py-1 bg-white max-h-60 overflow-y-auto">
+                            
+                            <template #trigger>
+                                <button
+                                    type="button"
+                                    class="w-full bg-white border border-gray-300 rounded-lg shadow-sm px-4 py-2.5 text-start text-sm flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition ease-in-out duration-150"
+                                    :class="!form.pic_user_id ? 'text-gray-500' : 'text-gray-900'"
+                                >
+                                    <span class="truncate block mr-2">
+                                        {{ selectedUserLabel }}
+                                    </span>
+                                    
+                                    <svg class="h-4 w-4 text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </template>
+
+                            <template #content>
+                                <button
+                                    type="button"
+                                    @click="selectUser(null)"
+                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out"
+                                    :class="{ 'bg-gray-50 font-bold': form.pic_user_id === null }"
+                                >
+                                    -- Tidak Ada / Belum Ditentukan --
+                                </button>
+
+                                <button
+                                    v-for="user in users"
+                                    :key="user.id"
+                                    type="button"
+                                    @click="selectUser(user.id)"
+                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out border-t border-gray-50"
+                                    :class="{ 'bg-indigo-50 text-indigo-700 font-bold': form.pic_user_id === user.id }"
+                                >
+                                    {{ user.name }} 
+                                    <span class="text-xs text-gray-400 ml-1">({{ user.position?.name || 'Staff' }})</span>
+                                </button>
+                            </template>
+                        </Dropdown>
+
+                        <p class="text-[10px] text-gray-500 mt-1">
+                            *Orang ini akan menerima notifikasi tugas otomatis untuk aset di ruangan ini.
+                        </p>
+                        <InputError :message="form.errors.pic_user_id" class="mt-1" />
                     </div>
 
                     <div>

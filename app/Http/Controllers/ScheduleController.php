@@ -14,12 +14,10 @@ class ScheduleController extends Controller
     public function index()
     {
         return Inertia::render('Schedules/Index', [
-            // List of existing schedules (paginated)
             'schedules' => Schedule::with('assetable.room.floor.building')
                 ->latest()
                 ->paginate(10),
 
-            // List of buildings for the "Checkbox" selection in Frontend
             'buildings' => Building::select('id', 'name')->orderBy('name')->get(),
         ]);
     }
@@ -27,14 +25,14 @@ class ScheduleController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'asset_type'      => 'required|string', // e.g., 'App\Models\Apar'
+            'asset_type'      => 'required|string',
             'months_interval' => 'required|integer|min:1',
-            'week_rank'       => 'nullable|integer|min:1|max:4', // 1, 2, 3, 4, or NULL (Free)
+            'week_rank'       => 'nullable|integer|min:1|max:4',
             'start_date'      => 'required|date',
             'scope'           => 'required|in:global,building',
-            
             'building_ids'    => 'required_if:scope,building|array',
             'building_ids.*'  => 'exists:buildings,id',
+            'assign_type'     => 'required|in:k3,pic'
         ]);
 
         $modelClass = $request->asset_type;
@@ -65,9 +63,10 @@ class ScheduleController extends Controller
                 Schedule::create([
                     'assetable_type'  => $request->asset_type,
                     'assetable_id'    => $asset->id,
-                    'building_id'     => $buildingId, // Save for easier filtering later
+                    'building_id'     => $buildingId,
                     'months_interval' => $request->months_interval,
-                    'week_rank'       => $request->week_rank, // Can be null
+                    'week_rank'       => $request->week_rank,
+                    'assign_type'     => $request->assign_type,
                     'next_run_date'   => $request->start_date,
                 ]);
 

@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Floor;
 use App\Models\Building;
+use App\Models\User;
 
 class RoomController extends Controller
 {
@@ -19,22 +20,26 @@ class RoomController extends Controller
         }
 
         return inertia('MasterData/Room/Index', [
-            'rooms' => Room::with('floor.building') // Load relasi berantai
-                        ->when($request->search, function($query, $search) {
-                            $query->where('name', 'like', "%{$search}%")
-                                ->orWhere('code', 'like', "%{$search}%")
-                                ->orWhereHas('floor', function($q) use ($search) {
-                                    $q->where('name', 'like', "%{$search}%")
-                                        ->orWhereHas('building', function($qb) use ($search) {
-                                            $qb->where('name', 'like', "%{$search}%");
-                                        });
-                                });
-                        })
-                        ->paginate(10)
-                        ->withQueryString(),
-            'floors' => Floor::with('building')->get(),
-            'filters' => $request->only(['search']),
-        ]);
+        'rooms' => Room::with(['floor.building', 'pic'])
+                    ->when($request->search, function($query, $search) {
+                        $query->where('name', 'like', "%{$search}%")
+                            ->orWhere('code', 'like', "%{$search}%")
+                            ->orWhereHas('floor', function($q) use ($search) {
+                                $q->where('name', 'like', "%{$search}%")
+                                    ->orWhereHas('building', function($qb) use ($search) {
+                                        $qb->where('name', 'like', "%{$search}%");
+                                    });
+                            });
+                    })
+                    ->paginate(10)
+                    ->withQueryString(),
+
+        'floors' => Floor::with('building')->get(),
+        'users' => User::with('position')
+                    ->select('id', 'name', 'position_id')
+                    ->get(),         
+        'filters' => $request->only(['search']),
+    ]);
     }
 
     public function store(Request $request)
@@ -44,6 +49,7 @@ class RoomController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:50|unique:rooms,code',
             'color' => 'nullable|string|max:50',
+            'pic_user_id' => 'nullable|exists:users,id',
         ]);
 
         $room = Room::create($validated);
@@ -66,6 +72,7 @@ class RoomController extends Controller
             'name'     => 'required|string|max:255',
             'code'     => 'required|string|max:50|unique:rooms,code,' . $room->id,
             'color'    => 'nullable|string|max:50',
+            'pic_user_id' => 'nullable|exists:users,id',
         ]);
 
         $room->update($validated);

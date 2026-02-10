@@ -45,6 +45,11 @@ const menuItems = [
         icon: CalendarClock,
         route: 'schedules.index',
     },
+    {
+        name: 'Monitoring Tugas',
+        icon: ClipboardCheck,
+        route: 'inspections.index',
+    },
     { 
         name: 'Logout', 
         icon: LogOut, 

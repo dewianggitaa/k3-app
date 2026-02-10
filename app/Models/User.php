@@ -46,8 +46,9 @@ class User extends Authenticatable
         return $this->belongsTo(Position::class);
     }
 
-        public function inspections(): HasMany
+    public function inspections(): HasMany
     {
         return $this->hasMany(Inspection::class, 'completed_by');
     }
+    
 }

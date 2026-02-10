@@ -13,7 +13,8 @@ return new class extends Migration
             $table->morphs('assetable');
             $table->foreignId('building_id')->constrained();
             $table->integer('months_interval')->default(1); 
-            $table->tinyInteger('week_rank')->nullable(); 
+            $table->tinyInteger('week_rank')->nullable();
+            $table->enum('assign_type', ['k3', 'pic'])->default('k3');
             $table->date('next_run_date'); 
             $table->dateTime('last_run_at')->nullable();
             $table->timestamps();

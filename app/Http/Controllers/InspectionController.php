@@ -3,127 +3,91 @@
 namespace App\Http\Controllers;
 
 use App\Models\Inspection;
+use App\Models\Building;
 use Illuminate\Http\Request;
+use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use Inertia\Inertia; 
-use Carbon\Carbon;
 
 class InspectionController extends Controller
 {
-    /**
-     * Menampilkan Halaman Utama
-     * Logic dipisah berdasarkan Permission User
-     */
     public function index(Request $request)
     {
-        $user = $request->user();
-
-        if ($user->can('manage_inspections')) {
-            
-            // Query Dasar
-            $query = Inspection::with(['assetable', 'executor', 'schedule']);
-
-            // 1. Filter Status (Opsional)
-            if ($request->has('status') && $request->status) {
-                $query->where('status', $request->status);
-            }
-
-            // 2. Filter Bulan (Default: Bulan Ini)
-            // Format input: "2026-02"
-            $month = $request->input('month', now()->format('Y-m'));
-            $query->where('schedule_date', 'like', "{$month}%");
-
-            // Ambil Data dengan Pagination
-            $inspections = $query->latest('due_date')
-                                 ->paginate(20)
-                                 ->withQueryString();
-
-            // Render Tampilan Admin
-            return Inertia::render('Inspections/AdminIndex', [
-                'inspections' => $inspections,
-                'filters'     => $request->all(['status', 'month']), // Supaya filter tidak reset di frontend
-            ]);
+        if (!Auth::user()->can('manage-inspections')) {
+            abort(403, 'Anda tidak memiliki izin untuk mengakses halaman ini.');
         }
 
+        $query = Inspection::with(['assetable.room.floor.building', 'schedule']);
 
-        $tasks = Inspection::with(['assetable', 'schedule'])
-                    ->where('status', 'pending')
-                    ->orderBy('due_date', 'asc')
-                    ->get()
-                    ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'asset_name' => class_basename($task->assetable_type) . ' #' . $task->assetable_id,
-                            'location'   => $task->assetable->location ?? '-',
-                            'due_date'   => $task->due_date->format('Y-m-d'),
-                            'due_human'  => $task->due_date->diffForHumans(),
-                            'status'     => $task->status,
-                        ];
-                    });
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+        
+        if ($request->building_id) {
+            $query->whereHas('schedule', function ($q) use ($request) {
+                $q->where('building_id', $request->building_id);
+            });
+        }
 
-        // B. History Saya (5 Terakhir)
-        $myHistory = Inspection::with(['assetable'])
-                    ->where('completed_by', Auth::id())
-                    ->latest('completed_at')
-                    ->limit(5)
-                    ->get();
-
-        // Render Tampilan Petugas
         return Inertia::render('Inspections/Index', [
-            'tasks'     => $tasks,
-            'myHistory' => $myHistory
+            'inspections' => $query->latest('schedule_date')->paginate(10)->withQueryString(),
+            'buildings'   => Building::all(),
+            'filters'     => $request->only(['status', 'building_id']),
         ]);
     }
 
-    public function show($id)
+    public function store(Request $request)
     {
-        $inspection = Inspection::with('assetable')->findOrFail($id);
-
-        // Validasi: Kalau sudah selesai, jangan dikerjakan lagi
-        if ($inspection->status == 'completed') {
-            return to_route('inspections.index')
-                 ->with('error', 'Tugas ini sudah selesai.');
+        if (!Auth::user()->can('manage-inspections')) {
+            abort(403, 'Anda tidak memiliki izin untuk membuat tugas.');
         }
 
-        return Inertia::render('Inspections/Show', [
-            'inspection' => $inspection,
-            'asset_type' => class_basename($inspection->assetable_type),
+        $request->validate([
+            'schedule_id'    => 'required|exists:schedules,id',
+            'assetable_type' => 'required',
+            'assetable_id'   => 'required',
+            'schedule_date'  => 'required|date',
+            'due_date'       => 'required|date|after_or_equal:schedule_date',
         ]);
+
+        Inspection::create([
+            'schedule_id'    => $request->schedule_id,
+            'assetable_type' => $request->assetable_type,
+            'assetable_id'   => $request->assetable_id,
+            'status'         => 'pending',
+            'schedule_date'  => $request->schedule_date,
+            'due_date'       => $request->due_date,
+        ]);
+
+        return redirect()->back()->with('success', 'Tugas berhasil dibuat.');
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, Inspection $inspection)
     {
-        $inspection = Inspection::findOrFail($id);
-
-        // Validasi Race Condition
-        if ($inspection->status == 'completed') {
-            return back()->with('error', 'Sudah diambil orang lain.');
+        if (!Auth::user()->can('manage-inspections')) {
+            abort(403, 'Anda tidak memiliki izin untuk mengedit tugas.');
         }
 
-        // Logic Upload File & Input Data
-        $inputs = $request->except(['_token', '_method']);
-        $reportData = [];
-
-        foreach ($inputs as $key => $value) {
-            if ($request->hasFile($key)) {
-                $path = $request->file($key)->store('inspections', 'public');
-                $reportData[$key] = [
-                    'type' => 'file',
-                    'url'  => Storage::url($path)
-                ];
-            } else {
-                $reportData[$key] = $value;
-            }
-        }
+        $request->validate([
+            'status' => 'required|in:pending,completed,issue,overdue',
+            'notes'  => 'nullable|string',
+        ]);
 
         $inspection->update([
-            'status'       => 'completed',
-            'completed_at' => now(),
-            'completed_by' => Auth::id(),
-            'report_data'  => $reportData,
+            'status' => $request->status,
+            'notes'  => $request->notes,
         ]);
 
-        return to_route('inspections.index')->with('success', 'Laporan Terkirim!');
+        return redirect()->back()->with('success', 'Tugas berhasil diperbarui.');
+    }
+
+    public function destroy($id)
+    {
+        if (!Auth::user()->can('manage-inspections')) {
+            abort(403, 'Anda tidak memiliki izin untuk menghapus tugas.');
+        }
+
+        Inspection::findOrFail($id)->delete();
+
+        return redirect()->back()->with('success', 'Tugas berhasil dihapus.');
     }
 }

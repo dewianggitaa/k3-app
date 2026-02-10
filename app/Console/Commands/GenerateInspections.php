@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 class GenerateInspections extends Command
 {
     protected $signature = 'inspections:generate';
-    protected $description = 'Generate tugas inspeksi rutin dengan dukungan interval multi-bulan';
+    protected $description = 'Generate tugas inspeksi rutin dengan dukungan assign_type (K3/PIC)';
 
     public function handle()
     {
@@ -22,7 +22,10 @@ class GenerateInspections extends Command
         $this->info("Robot jalan pada: " . Carbon::now($timezone)->toDateTimeString());
 
         // Cari jadwal yang sudah jatuh tempo
-        $schedules = Schedule::whereDate('next_run_date', '<=', $today)->get();
+        // UPDATE: Tambahkan 'with' untuk mengambil relasi asset dan room sekaligus (Optimasi Query)
+        $schedules = Schedule::with(['asset.room'])
+            ->whereDate('next_run_date', '<=', $today)
+            ->get();
 
         if ($schedules->isEmpty()) {
             $this->info('Tidak ada jadwal yang perlu diproses hari ini.');
@@ -35,17 +38,17 @@ class GenerateInspections extends Command
                 // Gunakan timezone Jakarta saat parsing tanggal dari DB
                 $baseMonth = Carbon::parse($schedule->next_run_date, $timezone)->startOfMonth();
                 
-                // LOGIKA DUE DATE: Akhir bulan sesuai interval (Jika 2 bulan, maka akhir bulan ke-2)
+                // LOGIKA DUE DATE: Akhir bulan sesuai interval
                 $endOfInterval = $baseMonth->copy()
                     ->addMonths($schedule->months_interval - 1)
                     ->endOfMonth();
 
                 if (is_null($schedule->week_rank)) {
-                    // JADWAL BEBAS: Dari tanggal 1 sampai akhir interval
+                    // JADWAL BEBAS
                     $startDate = $baseMonth->copy();
                     $dueDate   = $endOfInterval;
                 } else {                    
-                    // JADWAL PER MINGGU: Start/End mengikuti range minggu di bulan pertama
+                    // JADWAL PER MINGGU
                     $dayMap = [
                         1 => [1, 7],
                         2 => [8, 14],
@@ -58,7 +61,26 @@ class GenerateInspections extends Command
                     $dueDate   = $baseMonth->copy()->day($range[1]);
                 }
 
-                // Create Inspection
+                // ============================================================
+                // LOGIC BARU: MENENTUKAN SIAPA YANG MENGERJAKAN (USER_ID)
+                // ============================================================
+                $assignedUserId = null; // Default NULL (Untuk tipe 'k3')
+
+                if ($schedule->assign_type === 'pic') {
+                    // Cek apakah aset punya ruangan, dan ruangan punya PIC
+                    // Asumsi: Relasi di model Schedule adalah belongsTo Asset ('asset')
+                    $room = $schedule->asset->room ?? null;
+
+                    if ($room && $room->pic_area_id) {
+                        $assignedUserId = $room->pic_area_id;
+                        $this->comment(" -> Assign ke PIC: ID $assignedUserId");
+                    } else {
+                        // Jika tipe PIC tapi datanya kosong, beri peringatan di log
+                        $this->warn(" -> Warning: Jadwal ID {$schedule->id} tipe PIC, tapi ruangan tidak punya PIC. Masuk ke Pool K3.");
+                    }
+                }
+                // ============================================================
+
                 Inspection::create([
                     'schedule_id'    => $schedule->id,
                     'assetable_type' => $schedule->assetable_type,
@@ -66,19 +88,20 @@ class GenerateInspections extends Command
                     'status'         => 'pending',
                     'schedule_date'  => $startDate,
                     'due_date'       => $dueDate,
+                    // Masukkan hasil logic di atas
+                    'user_id'        => $assignedUserId, 
                 ]);
 
-                // Update Schedule untuk periode berikutnya
-                // Pakai addMonthsNoOverflow agar tgl 31 tidak loncat ke Maret jika tujuannya Februari
+                // Hitung jadwal berikutnya
                 $nextRun = $baseMonth->copy()->addMonthsNoOverflow($schedule->months_interval);
 
                 $schedule->update([
-                    'last_run_at'   => Carbon::now($timezone), // Catat jam Jakarta (08:xx)
+                    'last_run_at'   => Carbon::now($timezone),
                     'next_run_date' => $nextRun
                 ]);
 
                 DB::commit();
-                $this->info("Sukses: ID {$schedule->id} -> Next: {$nextRun->toDateString()}");
+                $this->info("Sukses: ID {$schedule->id} ({$schedule->assign_type}) -> Next: {$nextRun->toDateString()}");
 
             } catch (\Exception $e) {
                 DB::rollBack();

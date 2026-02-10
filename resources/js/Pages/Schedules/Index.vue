@@ -141,15 +141,9 @@ const getAssetName = (type) => {
     <MainLayout>
         <template #header-title>
              <div class="flex items-center gap-4 px-4"> 
-                <div class="p-2 bg-blue-50 rounded-full">
-                    <CalendarClock class="w-6 h-6 text-blue-600" />
-                </div>
-                <div>
-                    <h2 class="font-bold text-lg text-gray-800 leading-tight">
-                        Manajemen Jadwal Otomatis
-                    </h2>
-                    <p class="text-xs text-gray-500">Atur frekuensi inspeksi rutin (Bulanan/Mingguan)</p>
-                 </div>
+                <h2 class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">
+                    Manajemen Jadwal Otomatis
+                </h2>
             </div>
         </template>
 
