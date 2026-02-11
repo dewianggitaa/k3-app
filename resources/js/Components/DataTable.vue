@@ -1,58 +1,52 @@
 <script setup>
+import { computed } from 'vue';
 import Pagination from '@/Components/Pagination.vue';
 
 const props = defineProps({
-    items: Object,
-    columns: Array,
+    items: {
+        type: [Array, Object], // Bisa Array (Client side) atau Object (Server side pagination)
+        default: () => [],
+    },
+    columns: {
+        type: Array,
+        default: () => [],
+    },
+});
+
+// HELPER: Normalisasi Data
+// Kalau items itu Array, pake langsung. Kalau Object pagination, ambil .data-nya.
+const tableData = computed(() => {
+    if (Array.isArray(props.items)) {
+        return props.items;
+    } else if (props.items && props.items.data) {
+        return props.items.data;
+    }
+    return [];
 });
 </script>
 
 <template>
     <div class="w-full">
-        
         <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-ghost dark:divide-gray-700">
-                
-                <thead class="bg-ghost/50 dark:bg-gray-800/50">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
                     <tr>
-                        <th 
-                            v-for="col in columns" 
-                            :key="col.key"
-                            class="px-5 py-3 text-left text-[11px] font-bold text-ink/70 dark:text-ink-dark/70 uppercase tracking-wider font-sans"
-                            :class="col.class"
-                        >
+                        <th v-for="col in columns" :key="col.key" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" :class="col.class">
                             {{ col.label }}
                         </th>
                     </tr>
                 </thead>
-
-                <tbody class="divide-y divide-ghost dark:divide-gray-700 bg-surface dark:bg-surface-dark">
+                <tbody class="bg-white divide-y divide-gray-200">
                     
-                    <tr v-if="items.data.length === 0">
-                        <td :colspan="columns.length" class="px-5 py-10 text-center">
-                            <div class="flex flex-col items-center justify-center text-ink/50 dark:text-ink-dark/50">
-                                <span class="text-sm font-medium italic">Belum ada data ditemukan.</span>
-                            </div>
+                    <tr v-if="tableData.length === 0">
+                        <td :colspan="columns.length" class="px-6 py-10 text-center text-gray-500">
+                            Belum ada data parameter.
                         </td>
                     </tr>
 
-                    <tr 
-                        v-else
-                        v-for="(item, index) in items.data" 
-                        :key="item.id || index" 
-                        class="hover:bg-ghost/30 dark:hover:bg-white/5 transition-colors duration-150 group"
-                    >
-                        <td 
-                            v-for="col in columns" 
-                            :key="col.key" 
-                            class="px-5 py-2.5 text-xs text-ink dark:text-ink-dark align-middle"
-                            :class="col.rowClass" 
-                        >
-                            <slot 
-                                :name="`cell-${col.key}`" 
-                                :item="item" 
-                                :index="index"
-                            >
+                    <tr v-else v-for="(item, index) in tableData" :key="item.id || index">
+                        <td v-for="col in columns" :key="col.key" class="px-6 py-4 whitespace-nowrap text-sm text-gray-900" :class="col.rowClass">
+                            <slot :name="`cell-${col.key}`" :item="item" :index="index">
                                 {{ item[col.key] }}
                             </slot>
                         </td>
@@ -62,9 +56,8 @@ const props = defineProps({
             </table>
         </div>
 
-        <div v-if="items.data.length > 0" class="border-t border-ghost dark:border-gray-700 px-5 py-3 bg-surface dark:bg-surface-dark rounded-b-lg">
-            <Pagination :links="items.links" :meta="items" />
+        <div v-if="!Array.isArray(items) && items.links" class="border-t border-gray-200 px-4 py-3">
+            <Pagination :links="items.links" />
         </div>
-
     </div>
 </template>

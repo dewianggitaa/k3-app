@@ -37,7 +37,8 @@ class ChecklistParameterController extends Controller
             'label'          => 'required|string|max:255',
             'input_type'     => 'required|in:text,number,boolean,radio,select,textarea',
             'options'        => 'nullable|array',
-            'standard_value' => 'nullable|string',
+            'standard_value' => 'required', 
+            
             'order_index'    => 'integer',
         ]);
 
@@ -55,7 +56,9 @@ class ChecklistParameterController extends Controller
 
         ChecklistParameter::create($data);
 
-        return redirect()->back()->with('success', 'Parameter berhasil ditambahkan.');
+        return to_route('checklist-parameters.index', [
+            'type' => $request->asset_type
+        ])->with('success', 'Parameter berhasil ditambahkan.');
     }
 
     public function update(Request $request, ChecklistParameter $checklistParameter)
@@ -64,7 +67,7 @@ class ChecklistParameterController extends Controller
             'label'          => 'required|string',
             'input_type'     => 'required',
             'options'        => 'nullable|array',
-            'standard_value' => 'nullable|string',
+            'standard_value' => 'required|string',
             'order_index'    => 'integer',
         ]);
 
