@@ -157,7 +157,7 @@ const openAssetInfo = (asset) => {
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="absolute top-0 left-0 w-full h-full pointer-events-none">
                     <polygon v-for="room in rooms" :key="room.id"
                         :points="room.coordinates?.map(p => `${p.x},${p.y}`).join(' ')"
-                        :fill="activeRoom?.id === room.id ? hexToRgba(room.color, 0.3) : 'rgba(0,0,0,0.03)'"
+                        :fill="activeRoom?.id === room.id ? hexToRgba(room.color, 0.1) : 'rgba(0,0,0,0.01)'"
                         :stroke="activeRoom?.id === room.id ? room.color : 'rgba(0,0,0,0.1)'"
                         stroke-width="0.2" />
                 </svg>

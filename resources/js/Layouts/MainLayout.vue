@@ -13,6 +13,7 @@ import {
     Menu,
     CalendarClock,
     ClipboardCheck, 
+    ListCheck,
 } from 'lucide-vue-next';
 
 import ThemeToggle from '@/Components/ThemeToggle.vue'; 
@@ -49,6 +50,11 @@ const menuItems = [
         name: 'Monitoring Tugas',
         icon: ClipboardCheck,
         route: 'inspections.index',
+    },
+    {
+        name: 'Checklist Parameter',
+        icon: ListCheck,
+        route: 'checklist-parameters.index',
     },
     { 
         name: 'Logout', 

@@ -12,37 +12,28 @@ class InspectionController extends Controller
 {
     public function index(Request $request)
     {
-        // 1. Cek Izin Admin
         if (!Auth::user()->can('manage-inspections')) {
             abort(403, 'Anda tidak memiliki izin untuk mengakses halaman ini.');
         }
 
-        // 2. Query Data dengan Relasi Lengkap
-        // Kita butuh data user (PIC), schedule (asal), dan lokasi aset (room->floor->building)
         $query = Inspection::with([
             'user', 
             'schedule', 
             'assetable.room.floor.building'
         ]);
 
-        // 3. Filter Status (Pending/Completed/Issue/Overdue)
         if ($request->status) {
             $query->where('status', $request->status);
         }
 
-        // 4. Filter Gedung (Logic "Memanjat" Relasi)
         if ($request->building_id) {
-            // Karena asetnya polymorphic (bisa Apar, Hydrant, P3k), kita pakai whereHasMorph
-            // '*' artinya cari di semua tipe model aset
             $query->whereHasMorph('assetable', '*', function ($q) use ($request) {
-                // Masuk ke relasi Room -> Floor -> Building
                 $q->whereHas('room.floor', function ($f) use ($request) {
                     $f->where('building_id', $request->building_id);
                 });
             });
         }
 
-        // 5. Filter Pencarian (Opsional: Cari nama user atau ID aset)
         if ($request->search) {
              $query->where(function($q) use ($request) {
                  $q->where('assetable_id', 'like', '%'.$request->search.'%')
@@ -53,10 +44,11 @@ class InspectionController extends Controller
         }
 
         return Inertia::render('Inspections/Index', [
-            'inspections' => $query->latest('schedule_date') // Urutkan dari jadwal terbaru
-                                   ->paginate(10)
-                                   ->withQueryString(),
-
+            'inspections' => $query
+                ->orderByRaw("FIELD(status, 'overdue', 'pending', 'completed') ASC")
+                ->orderBy('schedule_date', 'desc') 
+                ->paginate(10)
+                ->withQueryString(),
             'buildings'   => Building::select('id', 'name')->orderBy('name')->get(),
             
             'filters'     => $request->only(['status', 'building_id', 'search']),

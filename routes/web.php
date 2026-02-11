@@ -10,6 +10,7 @@ use App\Http\Controllers\AparController;
 use App\Http\Controllers\HydrantController;
 use App\Http\Controllers\ScheduleController;
 use App\Http\Controllers\InspectionController;
+use App\Http\Controllers\ChecklistParameterController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -46,6 +47,8 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('schedules', App\Http\Controllers\ScheduleController::class);
     Route::resource('inspections', App\Http\Controllers\InspectionController::class);
+
+    Route::resource('checklist-parameters', App\Http\Controllers\ChecklistParameterController::class);
 });
 
 require __DIR__.'/auth.php';
