@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { onMounted, ref, nextTick, computed } from 'vue';
 import { Head, useForm, Link } from '@inertiajs/vue3';
 import { 
     ChevronLeft, Search, MapPin, Save, RotateCcw, 
@@ -15,9 +15,11 @@ const props = defineProps({
     rooms: Array,
     p3ks: Array,
     apars: Array,
-    hydrants: Array
+    hydrants: Array,
+    target_id: [String, Number],
+    target_type: String
 });
-
+const mapCoreRef = ref(null);
 const activeType = ref('p3k'); 
 
 const assetConfig = computed(() => ({
@@ -28,6 +30,25 @@ const assetConfig = computed(() => ({
 
 const selectedAsset = ref(null);
 const searchQuery = ref('');
+
+onMounted(() => {
+    if (props.target_type && props.target_id) {
+        
+        const requestedType = props.target_type.toLowerCase();
+
+        if (assetConfig.value[requestedType]) {
+            
+            activeType.value = requestedType; 
+            
+            const assetsList = assetConfig.value[requestedType].data || [];
+            const target = assetsList.find(a => a.id == props.target_id);
+
+            if (target) {
+                selectAsset(target);
+            }
+        }
+    }
+});
 
 const form = useForm({
     id: '',
@@ -170,6 +191,7 @@ const toast = Swal.mixin({
 
             <div class="flex-1 bg-gray-200 rounded-xl relative overflow-hidden flex items-center justify-center border-none">
                 <AssetMappingCore 
+                    ref="mapCoreRef"
                     v-model="form.location_data"
                     :floor="floor"
                     :rooms="rooms"

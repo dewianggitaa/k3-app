@@ -11,35 +11,62 @@ use Illuminate\Support\Facades\DB;
 class GenerateInspections extends Command
 {
     protected $signature = 'inspections:generate';
-    protected $description = 'Generate tugas inspeksi berdasarkan Aturan Jadwal (Rule-Based)';
+    protected $description = 'Cek tugas overdue & Generate tugas inspeksi baru (Rule-Based)';
 
     public function handle()
     {
         $timezone = 'Asia/Jakarta';
-        $today = Carbon::now($timezone)->startOfDay();
+        $now = Carbon::now($timezone);
+        $today = $now->copy()->startOfDay();
 
-        $this->info("Robot mulai bekerja: " . Carbon::now($timezone)->toDateTimeString());
+        $this->info("=== ROBOT INSPEKSI MULAI BEKERJA: " . $now->toDateTimeString() . " ===");
+
+        // ==========================================
+        // TAHAP 1: CEK TUGAS TERLAMBAT (OVERDUE)
+        // ==========================================
+        $this->info("1. Memeriksa tugas yang melewati deadline...");
+
+        // Logic: Ubah status jadi 'overdue' jika status masih 'pending' DAN due_date < hari ini
+        $affectedRows = Inspection::where('status', 'pending')
+            ->whereDate('due_date', '<', $today)
+            ->update(['status' => 'overdue']);
+
+        if ($affectedRows > 0) {
+            $this->warn("   -> Ditemukan $affectedRows tugas telat. Status diubah menjadi 'Overdue'.");
+        } else {
+            $this->info("   -> Aman. Tidak ada tugas yang terlambat hari ini.");
+        }
+
+        $this->newLine(); // Jarak baris biar rapi
+
+        // ==========================================
+        // TAHAP 2: GENERATE TUGAS BARU DARI JADWAL
+        // ==========================================
+        $this->info("2. Memproses jadwal rutin...");
 
         $schedules = Schedule::with('buildings')
             ->whereDate('next_run_date', '<=', $today)
             ->get();
 
         if ($schedules->isEmpty()) {
-            $this->info('Tidak ada jadwal yang perlu diproses hari ini.');
+            $this->info("   -> Tidak ada jadwal yang perlu diproses hari ini.");
+            $this->info("=== SELESAI ===");
             return;
         }
 
         foreach ($schedules as $schedule) {
             DB::beginTransaction();
             try {
+                // --- Validasi Model ---
                 $modelClass = $schedule->asset_type;
-                
                 if (!class_exists($modelClass)) {
                     throw new \Exception("Model aset tidak ditemukan: $modelClass");
                 }
 
+                // --- Query Aset ---
                 $query = $modelClass::with('room');
 
+                // --- Filter Scope (Global / Building) ---
                 if ($schedule->scope === 'building') {
                     $buildingIds = $schedule->buildings->pluck('id')->toArray();
                     
@@ -53,25 +80,28 @@ class GenerateInspections extends Command
                 $assets = $query->get();
                 $countCreated = 0;
 
+                // --- Loop Setiap Aset ---
                 foreach ($assets as $asset) {
                     
+                    // Cek Penugasan (PIC vs Tim K3)
                     $targetUserId = null;
-
                     if ($schedule->assign_type === 'pic') {
-                        // Cek apakah aset punya ruangan & ruangan punya PIC
                         if ($asset->room && $asset->room->pic_user_id) {
                             $targetUserId = $asset->room->pic_user_id;
                         } 
                     }
 
-                    // --- LOGIC TANGGAL ---
+                    // Hitung Tanggal (Start & Due Date)
                     $baseMonth = Carbon::parse($schedule->next_run_date, $timezone)->startOfMonth();
+                    // Due date default akhir bulan interval
                     $endOfInterval = $baseMonth->copy()->addMonths($schedule->months_interval - 1)->endOfMonth();
 
                     if (is_null($schedule->week_rank)) {
+                        // Bebas / Awal Bulan
                         $startDate = $baseMonth->copy();
                         $dueDate   = $endOfInterval;
                     } else {
+                        // Minggu Tertentu
                         $dayMap = [
                             1 => [1, 7],
                             2 => [8, 14],
@@ -83,8 +113,7 @@ class GenerateInspections extends Command
                         $dueDate   = $baseMonth->copy()->day($range[1]);
                     }
 
-                    // --- BUAT INSPEKSI ---
-                    // Cek duplikasi dulu biar gak double entry di bulan yang sama
+                    // Cek Duplikasi (Supaya tidak double)
                     $exists = Inspection::where('schedule_id', $schedule->id)
                         ->where('assetable_type', $schedule->asset_type)
                         ->where('assetable_id', $asset->id)
@@ -100,31 +129,30 @@ class GenerateInspections extends Command
                             'status'         => 'pending',
                             'schedule_date'  => $startDate,
                             'due_date'       => $dueDate,
-                            // Masukkan ID PIC (atau NULL)
                             'user_id'        => $targetUserId, 
                         ]);
                         $countCreated++;
                     }
                 }
 
-                // 4. UPDATE JADWAL UTAMA
+                // Update Jadwal Induk (Next Run Date)
                 $nextRun = Carbon::parse($schedule->next_run_date, $timezone)
                             ->addMonthsNoOverflow($schedule->months_interval);
 
                 $schedule->update([
-                    'last_run_at'   => Carbon::now($timezone),
+                    'last_run_at'   => $now,
                     'next_run_date' => $nextRun
                 ]);
 
                 DB::commit();
-                $this->info("Jadwal ID {$schedule->id}: Berhasil generate $countCreated tugas. Next: {$nextRun->toDateString()}");
+                $this->info("   -> Jadwal ID {$schedule->id}: Berhasil generate $countCreated tugas. Next: {$nextRun->toDateString()}");
 
             } catch (\Exception $e) {
                 DB::rollBack();
-                $this->error("Gagal pada Jadwal ID {$schedule->id}: " . $e->getMessage());
+                $this->error("   -> Gagal pada Jadwal ID {$schedule->id}: " . $e->getMessage());
             }
         }
         
-        $this->info('Selesai.');
+        $this->info("=== SELESAI ===");
     }
 }

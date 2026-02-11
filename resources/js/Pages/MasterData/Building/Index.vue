@@ -135,7 +135,13 @@ const columns = [
     <Head title="Master Data Gedung" />
 
     <MainLayout>
-        <template #header>Master Data Gedung</template>
+        <template #header-title>
+             <div class="flex items-center gap-4 px-4"> 
+                <h2 class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">
+                    Master Data Gedung
+                </h2>
+            </div>
+        </template>
 
         <Card no-padding className="h-full">
             <template #header>

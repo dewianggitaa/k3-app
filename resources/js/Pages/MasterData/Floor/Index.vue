@@ -104,7 +104,13 @@ const deleteFloor = (id, name) => {
     <Head title="Master Data Lantai" />
 
     <MainLayout>
-        <template #header>Master Data Lantai</template>
+        <template #header-title>
+             <div class="flex items-center gap-4 px-4"> 
+                <h2 class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">
+                    Master Data Lantai
+                </h2>
+            </div>
+        </template>
         
         <Card no-padding className="h-full">
             <template #header>

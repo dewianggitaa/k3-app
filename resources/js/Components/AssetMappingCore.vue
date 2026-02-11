@@ -195,7 +195,7 @@ const openAssetInfo = (asset) => {
                             :src="iconPath" 
                             @click.stop="toggleInfo(asset.id)"
                             class="w-5 h-5 relative z-10 drop-shadow-md cursor-pointer transition-all duration-200" 
-                            :class="{'scale-[1.6] brightness-125 z-20': asset.id === selectedAsset?.id || activeInfoId === asset.id}" 
+                            :class="{'scale-[1.7] brightness-125 z-20': asset.id === selectedAsset?.id || activeInfoId === asset.id}" 
                         />
                     </div>
                 </div>

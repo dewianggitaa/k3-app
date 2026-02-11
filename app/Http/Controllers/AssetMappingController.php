@@ -13,7 +13,7 @@ use Inertia\Inertia;
 class AssetMappingController extends Controller
 {
 
-    public function index($floor_id)
+    public function index($floor_id, Request $request)
     {
         $floor = Floor::findOrFail($floor_id);
         
@@ -48,6 +48,8 @@ class AssetMappingController extends Controller
             'p3ks'  => $p3ks,
             'apars' => $apars,
             'hydrants' => $hydrants,
+            'target_id' => $request->target_id,
+            'target_type' => $request->target_type,
         ]);
     }
 

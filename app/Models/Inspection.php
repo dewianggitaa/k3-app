@@ -28,7 +28,7 @@ class Inspection extends Model
         return $this->morphTo();
     }
 
-    public function executor(): BelongsTo
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }

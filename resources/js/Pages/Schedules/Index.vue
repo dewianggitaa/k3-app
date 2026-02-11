@@ -109,10 +109,10 @@ const deleteSchedule = (id) => {
 
 // --- HELPER UI ---
 const columns = [
-    { label: 'Target Inspeksi', key: 'target', class: 'w-1/3' },
-    { label: 'Jadwal & Frekuensi', key: 'frequency' },
-    { label: 'Generate Berikutnya', key: 'next_run' },
-    { label: 'Aksi', key: 'action', class: 'text-right' },
+    { label: 'Target Inspeksi', key: 'target', class: 'w-1/3 text-center' },
+    { label: 'Jadwal & Frekuensi', key: 'frequency', class:'text-center' },
+    { label: 'Generate Berikutnya', key: 'next_run', class:'text-center w-fit px-4' },
+    { label: 'Aksi', key: 'action', class: 'text-center' },
 ];
 
 const getAssetIcon = (type) => {
@@ -177,7 +177,7 @@ const getAssetName = (type) => {
                             <div class="flex flex-col gap-1">
                                 <div v-if="item.scope === 'global'" class="flex items-center gap-1.5 text-xs text-gray-600">
                                     <Globe class="w-3.5 h-3.5 text-blue-500" />
-                                    <span>Berlaku untuk <b class="text-gray-800">Semua Gedung</b> (Global)</span>
+                                    <span>Berlaku untuk <b class="text-gray-800">Semua Gedung</b></span>
                                 </div>
 
                                 <div v-else class="flex items-start gap-1.5 text-xs text-gray-600">
@@ -201,7 +201,7 @@ const getAssetName = (type) => {
                 </template>
 
                 <template #cell-frequency="{ item }">
-                    <div class="flex flex-col gap-1 py-1">
+                    <div class="flex flex-col gap-1 py-1 items-center">
                         <div class="text-xs font-medium text-gray-600 flex items-center gap-2">
                             <Repeat class="w-3.5 h-3.5" />
                             <span v-if="item.months_interval === 1">Setiap Bulan</span>
@@ -215,14 +215,14 @@ const getAssetName = (type) => {
                         </div>
                         <div v-else>
                             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">
-                                Bebas / Awal Bulan
+                                Sepanjang Bulan
                             </span>
                         </div>
                     </div>
                 </template>
 
                 <template #cell-next_run="{ item }">
-                    <div class="flex flex-col">
+                    <div class="flex flex-col items-center">
                         <span class="font-bold text-sm text-gray-800">
                             {{ new Date(item.next_run_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }}
                         </span>
@@ -231,7 +231,7 @@ const getAssetName = (type) => {
                 </template>
 
                 <template #cell-action="{ item }">
-                    <div class="flex justify-end gap-1">
+                    <div class="flex justify-center gap-1">
                         <button @click="openEditModal(item)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Edit Aturan">
                             <Pencil class="w-4 h-4" />
                         </button>
