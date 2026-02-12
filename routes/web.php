@@ -46,7 +46,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('hydrants', App\Http\Controllers\HydrantController::class);
 
     Route::resource('schedules', App\Http\Controllers\ScheduleController::class);
+    Route::get('/inspections/open', [InspectionController::class, 'openTasks'])->name('inspections.open');
+    Route::get('/inspections/my-tasks', [InspectionController::class, 'myTasks'])->name('inspections.my-tasks');
     Route::resource('inspections', App\Http\Controllers\InspectionController::class);
+    
+
 
     Route::resource('checklist-parameters', App\Http\Controllers\ChecklistParameterController::class);
 });

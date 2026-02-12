@@ -14,6 +14,7 @@ return new class extends Migration
             $table->foreignId("p3k_type_id")->constrained("p3k_types");
             $table->foreignId("p3k_item_id")->constrained("p3k_items");
             $table->integer("quantity");
+            $table->integer("standard")->nullable();
             $table->timestamps();
         });
     }

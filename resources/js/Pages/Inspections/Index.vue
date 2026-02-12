@@ -14,19 +14,16 @@ import DataTable from '@/Components/DataTable.vue';
 import Pagination from '@/Components/Pagination.vue';
 import SearchInput from '@/Components/SearchInput.vue';
 
-// PROPS dari Controller
 const props = defineProps({
     inspections: Object,
     buildings: Array,
     filters: Object,
 });
 
-// STATE REACTIVE UNTUK FILTER
 const search = ref(props.filters?.search || '');
 const statusFilter = ref(props.filters?.status || '');
 const buildingFilter = ref(props.filters?.building_id || '');
 
-// WATCHER: Otomatis reload saat filter berubah (Debounce agar tidak spam request)
 watch([search, statusFilter, buildingFilter], debounce(() => {
     router.get(route('inspections.index'), { 
         search: search.value,
@@ -35,7 +32,6 @@ watch([search, statusFilter, buildingFilter], debounce(() => {
     }, { preserveState: true, replace: true });
 }, 300));
 
-// --- HELPER UNTUK UI ---
 const columns = [
     { label: 'Status', key: 'status', class: 'w-32' },
     { label: 'Aset & Lokasi', key: 'asset' },

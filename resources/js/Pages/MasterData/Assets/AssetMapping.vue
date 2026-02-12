@@ -144,7 +144,7 @@ const toast = Swal.mixin({
         </template>
 
         <template #header-nav>
-            <div class="w-full bg-red-300 px-6"> 
+            <div class="w-full px-6"> 
                 <MappingNavigation :floorId="floor.id" />
             </div>
         </template>

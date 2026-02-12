@@ -37,7 +37,7 @@ class ChecklistParameterController extends Controller
             'label'          => 'required|string|max:255',
             'input_type'     => 'required|in:text,number,boolean,radio,select,textarea',
             'options'        => 'nullable|array',
-            'standard_value' => 'required', 
+            'standard_value' => 'nullable', 
             
             'order_index'    => 'integer',
         ]);
@@ -67,7 +67,7 @@ class ChecklistParameterController extends Controller
             'label'          => 'required|string',
             'input_type'     => 'required',
             'options'        => 'nullable|array',
-            'standard_value' => 'required|string',
+            'standard_value' => 'nullable|string',
             'order_index'    => 'integer',
         ]);
 

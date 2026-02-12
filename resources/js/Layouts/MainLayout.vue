@@ -14,6 +14,7 @@ import {
     CalendarClock,
     ClipboardCheck, 
     ListCheck,
+    UserCheck,
 } from 'lucide-vue-next';
 
 import ThemeToggle from '@/Components/ThemeToggle.vue'; 
@@ -50,6 +51,16 @@ const menuItems = [
         name: 'Monitoring Tugas',
         icon: ClipboardCheck,
         route: 'inspections.index',
+    },
+    {
+        name: 'Tugas K3',
+        icon: UserCheck,
+        route: 'inspections.open',
+    },
+    {
+        name: 'Tugas PIC',
+        icon: UserCheck,
+        route: 'inspections.my-tasks',
     },
     {
         name: 'Checklist Parameter',

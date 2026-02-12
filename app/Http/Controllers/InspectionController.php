@@ -55,7 +55,91 @@ class InspectionController extends Controller
         ]);
     }
 
-    // --- LOGIC TAMBAHAN BUAT ADMIN (Edit Status / Hapus) ---
+    public function openTasks(Request $request)
+    {
+        $user = Auth::user();
+        
+        if (!$user->can('execute-inspection') || optional($user->department)->name !== 'K3') {
+            abort(403, 'Akses ditolak. Halaman ini khusus untuk Tim K3/PIC.');
+        }
+
+        $query = Inspection::with([
+            'schedule', 
+            'assetable.room.floor.building'
+        ])
+        ->whereNull('user_id');
+
+        if ($request->search) {
+            $query->whereHasMorph('assetable', '*', function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                  ->orWhere('code', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        if ($request->building_id) {
+            $query->whereHasMorph('assetable', '*', function ($q) use ($request) {
+                $q->whereHas('room.floor', function ($f) use ($request) {
+                    $f->where('building_id', $request->building_id);
+                });
+            });
+        }
+
+        return Inertia::render('Inspections/MyTasks', [
+            'inspections' => $query
+                ->orderByRaw("FIELD(status, 'overdue', 'pending', 'completed') ASC")
+                ->orderBy('schedule_date', 'asc')
+                ->paginate(10)
+                ->withQueryString(),
+            'pageType' => 'open',
+            'buildings' => Building::select('id', 'name')->orderBy('name')->get(),
+            'filters'   => $request->only(['search', 'building_id']),
+        ]);
+    }
+
+
+    public function myTasks(Request $request)
+    {
+        if (!Auth::user()->can('execute-inspection')) {
+            abort(403, 'Anda tidak memiliki izin untuk melakukan tugas inspeksi.');
+        }
+
+        $query = Inspection::with([
+            'schedule', 
+            'assetable.room.floor.building'
+        ])
+        ->where('user_id', Auth::id());
+
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->search) {
+            $query->whereHasMorph('assetable', '*', function ($q) use ($request) {
+                $q->where('name', 'like', '%'.$request->search.'%')
+                  ->orWhere('code', 'like', '%'.$request->search.'%');
+            });
+        }
+
+        if ($request->building_id) {
+            $query->whereHasMorph('assetable', '*', function ($q) use ($request) {
+                $q->whereHas('room.floor', function ($f) use ($request) {
+                    $f->where('building_id', $request->building_id);
+                });
+            });
+        }
+
+        return Inertia::render('Inspections/MyTasks', [
+            'inspections' => $query
+                ->orderByRaw("FIELD(status, 'overdue', 'pending', 'issue', 'completed') ASC")
+                ->orderBy('schedule_date', 'asc')
+                ->paginate(10)
+                ->withQueryString(),
+            'pageType' => 'assigned',
+            'buildings' => Building::select('id', 'name')->orderBy('name')->get(),
+            'filters'   => $request->only(['status', 'search', 'building_id']),
+        ]);
+    }
+
 
     public function update(Request $request, Inspection $inspection)
     {
