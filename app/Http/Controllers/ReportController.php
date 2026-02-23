@@ -44,9 +44,9 @@ class ReportController extends Controller
                     ->get()->map(function ($item) {
                         return [
                             'id' => 'usage_' . $item->id, 'record_date' => $item->record_date, 'asset_code' => $item->asset_code,
-                            'action_type' => $item->type === 'in' ? 'STOK MASUK' : 'PEMAKAIAN',
+                            'action_type' => $item->type === 'in' ? 'PENAMBAHAN' : 'PEMAKAIAN',
                             'actor' => $item->reporter_name . ($item->department_name ? " ({$item->department_name})" : ''),
-                            'details' => "Mutasi Obat: {$item->item_name} (Qty: {$item->qty})" . ($item->notes ? " - {$item->notes}" : ''),
+                            'details' => "Item P3K: {$item->item_name}\nJumlah: {$item->qty} " . ($item->notes ? " (Catatan: {$item->notes})" : ''),
                         ];
                     });
                 $data = $data->concat($usages);
@@ -120,9 +120,9 @@ class ReportController extends Controller
                     ->select('p3k_usages.created_at as record_date', 'p3ks.code as asset_code', 'p3k_usages.type', 'p3k_usages.reporter_name', 'departments.name as department_name', 'p3k_items.name as item_name', 'p3k_usages.qty', 'p3k_usages.notes')
                     ->get()->map(function ($item) {
                         return [
-                            'record_date' => $item->record_date, 'asset_code' => $item->asset_code, 'action_type' => $item->type === 'in' ? 'STOK MASUK' : 'PEMAKAIAN',
+                            'record_date' => $item->record_date, 'asset_code' => $item->asset_code, 'action_type' => $item->type === 'in' ? 'PENAMBAHAN' : 'PEMAKAIAN',
                             'actor' => $item->reporter_name . ($item->department_name ? " ({$item->department_name})" : ''), 
-                            'details' => "Mutasi Obat: {$item->item_name} (Qty: {$item->qty})" . ($item->notes ? " - {$item->notes}" : ''),
+                            'details' => "Item P3K: {$item->item_name}\nJumlah: {$item->qty} " . ($item->notes ? " (Catatan: {$item->notes})" : ''),
                         ];
                     });
                 $data = $data->concat($usages);
@@ -164,6 +164,7 @@ class ReportController extends Controller
         $pdf = Pdf::loadView('reports.pdf', [
             'data' => $data, 'tab' => strtoupper($tab), 'startDate' => $startDate, 'endDate' => $endDate, 'selectedAsset' => $assetCode, 
             'printedBy' => auth()->user()->name ?? 'Sistem K3',
+            'printedByPosition' => auth()->user()->department->name ?? 'K3',
         ])->setPaper('a4', 'landscape');
 
         return $pdf->stream('Laporan_K3_' . strtoupper($tab) . '.pdf');
@@ -197,30 +198,24 @@ class ReportController extends Controller
             }
         }
 
-        // 2. Cek Kuantitas (P3K)
-        // Di JSON `report_data`, key `expected` itu adalah nilai standar dari p3k_type_items
         if (isset($report['quantities']) && is_array($report['quantities'])) {
             foreach ($report['quantities'] as $itemId => $qtyData) {
                 $actual = (int) ($qtyData['actual'] ?? 0);
-                $expected = (int) ($qtyData['expected'] ?? 0); // Ini adalah nilai dari kolom standard
+                $expected = (int) ($qtyData['expected'] ?? 0);
                 
-                // BANDINGKAN JUMLAH AKTUAL vs STANDAR
                 if ($actual < $expected) {
                     $label = $itemNames[$itemId] ?? 'Item ' . $itemId;
-                    $kurang = $actual - $expected; // Hasil otomatis minus (contoh: 8 - 10 = -2)
+                    $kurang = $actual - $expected;
                     $anomalies[] = $label . ': ' . $kurang;
                 }
             }
         }
         
-        // 3. Penentuan Status Akhir
         if (!empty($anomalies)) {
-            // Gabungkan menjadi: Kondisi: KRITIS (Tuas: Rusak, Plester: -2)
             $detailText = implode(', ', $anomalies);
-            return "Kondisi: KRITIS ({$detailText})";
+            return "Kondisi: KRITIS\nRincian: {$detailText}";
         }
 
-        // Jika array $anomalies kosong (artinya 100% jawaban cocok dengan standar)
         return "Kondisi: BAIK";
     }
 }

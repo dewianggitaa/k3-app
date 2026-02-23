@@ -94,7 +94,7 @@
     <div class="header">
         <img src="{{ public_path('logo.png') }}" class="logo" alt="Logo Kimia Farma">
         
-        <h1 class="title">REKAM JEJAK LAPORAN & INSPEKSI {{ $tab }}</h1>
+        <h1 class="title">CATATAN PEMERIKSAAN {{ $tab }}</h1>
         <div class="subtitle">
             Periode Laporan: {{ \Carbon\Carbon::parse($startDate)->translatedFormat('d F Y') }} s/d {{ \Carbon\Carbon::parse($endDate)->translatedFormat('d F Y') }}
         </div>
@@ -122,36 +122,49 @@
             </tr>
         </thead>
         <tbody>
-            @forelse($data as $row)
-            <tr>
-                <td>{{ \Carbon\Carbon::parse($row['record_date'])->format('d/m/Y H:i') }}</td>
-                
-                @if($selectedAsset === 'all')
-                <td><b>{{ $row['asset_code'] }}</b></td>
-                @endif
-                
-                <td><b>{{ $row['action_type'] }}</b></td>
-                <td>{{ $row['actor'] }}</td>
-                
-                <td class="{{ (str_contains($row['details'], 'Temuan:') || str_contains($row['details'], 'RUSAK') || str_contains($row['details'], 'KRITIS')) ? 'text-danger' : '' }}">
-                    {{ $row['details'] }}
-                </td>
-            </tr>
-            @empty
-            <tr>
-                <td colspan="{{ $selectedAsset === 'all' ? 5 : 4 }}" style="text-align: center; padding: 20px;">
-                    Tidak ada data laporan pada periode atau filter ini.
-                </td>
-            </tr>
-            @endforelse
-        </tbody>
+                @forelse($data as $row)
+                <tr>
+                    <td>{{ \Carbon\Carbon::parse($row['record_date'])->format('d/m/Y H:i') }}</td>
+                    
+                    @if($selectedAsset === 'all')
+                    <td><b>{{ $row['asset_code'] }}</b></td>
+                    @endif
+                    
+                    <td><b>{{ $row['action_type'] }}</b></td>
+                    <td>{{ $row['actor'] }}</td>
+                    
+                    @php 
+                        $parts = explode("\n", $row['details']); 
+                        $isKritis = str_contains($parts[0], 'KRITIS');
+                    @endphp
+                    
+                    <td>
+                        <div style="font-weight: bold; ">
+                            {{ $parts[0] }}
+                        </div>
+                        
+                        @if(isset($parts[1]))
+                            <div style="font-size: 8.5px; color: #6b7280; margin-top: 4px; line-height: 1.2; font-style: italic;">
+                                {{ $parts[1] }}
+                            </div>
+                        @endif
+                    </td>
+                </tr>
+                @empty
+                <tr>
+                    <td colspan="{{ $selectedAsset === 'all' ? 5 : 4 }}" style="text-align: center; padding: 20px;">
+                        Tidak ada data laporan pada periode atau filter ini.
+                    </td>
+                </tr>
+                @endforelse
+            </tbody>
     </table>
 
     <div class="signature">
         <p>Disetujui / Dicetak Oleh,</p>
         <br><br><br><br>
         <p style="border-bottom: 1px solid #000; margin-bottom: 5px;"><b>{{ $printedBy }}</b></p>
-        <p style="margin:0;"><i>HSE / Tim K3</i></p>
+        <p style="margin:0;"><i>{{ $printedByPosition }}</i></p>
     </div>
 
     <div class="clear"></div>

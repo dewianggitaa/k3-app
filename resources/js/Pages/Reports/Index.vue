@@ -178,7 +178,7 @@ const currentAssets = computed(() => {
 
                     <template #cell-action_type="{ item }">
                         <span :class="{
-                                'bg-blue-100 text-blue-700 border-blue-200': item.action_type === 'STOK MASUK',
+                                'bg-blue-100 text-blue-700 border-blue-200': item.action_type === 'PENAMBAHAN',
                                 'bg-red-100 text-red-700 border-red-200': item.action_type === 'PEMAKAIAN',
                                 'bg-orange-100 text-orange-700 border-orange-200': item.action_type === 'INSPEKSI RUTIN'
                             }" 
@@ -192,10 +192,22 @@ const currentAssets = computed(() => {
                     </template>
 
                     <template #cell-details="{ item }">
-                        <span class="text-sm block leading-relaxed" 
-                              :class="item.details.includes('Temuan:') || item.details.includes('RUSAK') || item.details.includes('KRITIS') ? 'text-red-600 font-medium' : 'text-gray-600'">
-                            {{ item.details }}
-                        </span>
+                        <div class="whitespace-normal min-w-[200px] max-w-sm break-words leading-snug">
+                            
+                            <span :class="{
+                                'text-red-600 font-medium ': item.details.split('\n')[0].includes('KRITIS'),
+                                'text-black font-medium': !item.details.split('\n')[0].includes('KRITIS')
+                            }" class="block">
+                                {{ item.details.split('\n')[0] }}
+                            </span>
+                            
+                            <span v-if="item.details.split('\n')[1]" 
+                                  :class="item.details.split('\n')[0].includes('KRITIS') ? 'text-gray-500' : 'text-gray-500'" 
+                                  class="block text-[11px] mt-1.5 leading-tight italic">
+                                {{ item.details.split('\n')[1] }}
+                            </span>
+                            
+                        </div>
                     </template>
                 </DataTable>
 
