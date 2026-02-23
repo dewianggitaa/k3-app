@@ -213,10 +213,6 @@ const getStatusLabel = (status) => {
                     </template>
 
                 </DataTable>
-
-                <div class="p-4 border-t border-gray-100">
-                    <Pagination :links="inspections.links" />
-                </div>
             </Card>
         </div>
     </MainLayout>

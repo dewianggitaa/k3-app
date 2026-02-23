@@ -67,6 +67,11 @@ const menuItems = [
         icon: ListCheck,
         route: 'checklist-parameters.index',
     },
+    {
+        name: 'Riwayat Laporan',
+        icon: ListCheck,
+        route: 'reports.index',
+    },
     { 
         name: 'Logout', 
         icon: LogOut, 
@@ -189,16 +194,22 @@ const toggleSubmenu = (menuName) => {
                 </div>
             </div>
 
-            <div class="h-12 flex items-center justify-center border-t border-ghost dark:border-gray-700 bg-page/50 dark:bg-gray-800/50">
+            <Link 
+                :href="route('profile.edit')" 
+                class="h-12 flex items-center justify-center border-t border-ghost dark:border-gray-700 bg-page/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 cursor-pointer"
+            >
                 <div class="flex items-center px-2">
                     <div class="w-6 h-6 rounded-md bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white font-bold text-[9px] shadow-sm flex-shrink-0">
-                        {{ name ? name[0] : 'U' }}
+                        {{ user?.name ? user.name[0] : 'U' }}
                     </div>
+                    
                     <div class="overflow-hidden transition-all duration-300 ml-2" :class="[ isHovered ? 'opacity-100 w-auto' : 'opacity-0 w-0' ]">
-                        <p class="text-[11px] font-bold text-ink dark:text-ink-dark whitespace-nowrap truncate w-24">{{ user?.name }}</p>
+                        <p class="text-[11px] font-bold text-ink dark:text-ink-dark whitespace-nowrap truncate w-24">
+                            {{ user?.name }}
+                        </p>
                     </div>
                 </div>
-            </div>
+            </Link>
         </aside>
 
         <div class="flex-shrink-0 transition-all duration-300 hidden md:block" 

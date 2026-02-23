@@ -44,14 +44,20 @@ class FloorController extends Controller
         if ($request->hasFile('map_image')) {
             $file = $request->file('map_image');
             
+            $imageSize = getimagesize($file->getRealPath());
+
             $filename = time() . '_' . $file->getClientOriginalName();
             
-            $file->storeAs('public/floors', $filename);
+            $file->storeAs('floors', $filename, 'public');
             
-            $validated['map_image'] = $filename;
+            $validated['map_image_path'] = $filename;
+            $validated['map_width'] = $imageSize[0];
+            $validated['map_height'] = $imageSize[1];
         }
 
-        $floor = Floor::create($validated);
+        unset($validated['map_image']);
+
+        Floor::create($validated);
         
         return redirect()->back()->with('message', 'Mantap! Data berhasil dibuat.');
     }
@@ -90,7 +96,6 @@ class FloorController extends Controller
             $validated['map_height'] = $imageSize[1]; // index 1 itu tinggi
         }
 
-        // Update ke DB
         $floor->update($validated);
         
         return redirect()->back()->with('message', 'Mantap! Data berhasil diupdate.');
@@ -101,7 +106,7 @@ class FloorController extends Controller
         $floor = Floor::find($id);
         if (!$floor) return response()->json(['message' => 'Not found'], 404);
         $floor->delete();
-        return response()->json(['message' => 'Floor deleted']);
+         return redirect()->back()->with('message', 'Mantap! Data berhasil dihapus.');
     }
 
     public function getByBuilding($buildingId)
@@ -112,7 +117,6 @@ class FloorController extends Controller
 
     public function mapping($id)
     {
-        // Ambil data lantai beserta ruangan-ruangannya
         $floor = Floor::with('rooms')->findOrFail($id);
         
         return Inertia::render('MasterData/Floor/Mapping', [

@@ -1,11 +1,12 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+// Tambahkan Link di sini
+import { Head, router, useForm, Link } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import Swal from 'sweetalert2';
 import { 
     Pencil, Trash2, Plus, MapPin, Save, X, 
-    Droplets, ClipboardList, Activity, Settings 
+    Droplets, ClipboardList, Activity, Settings, ChevronLeft 
 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -18,7 +19,6 @@ import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
 import NavLink from '@/Components/NavLink.vue';
-
 
 const props = defineProps({
     hydrants: Object,
@@ -205,9 +205,23 @@ const columns = [
 
                 <template #cell-action="{ item }">
                     <div class="flex justify-end gap-1">
-                        <button class="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-md">
+                        <div v-if="item.room?.floor_id">
+                            <Link 
+                                :href="route('assets.mapping', { 
+                                    floor: item.room.floor_id, 
+                                    target_id: item.id, 
+                                    target_type: 'hydrant' 
+                                })"
+                                class="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-md flex items-center justify-center transition-colors"
+                                title="Atur Posisi di Peta"
+                            >
+                                <MapPin class="w-4 h-4" />
+                            </Link>
+                        </div>
+                        <div v-else class="p-2 text-gray-300 cursor-not-allowed" title="Lokasi belum diatur">
                             <MapPin class="w-4 h-4" />
-                        </button>
+                        </div>
+
                         <button @click="openEditModal(item)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md">
                             <Pencil class="w-4 h-4" />
                         </button>

@@ -2,10 +2,10 @@
 import { ref, watch, computed } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
-import Swal from 'sweetalert2'; // Import Swal
+import Swal from 'sweetalert2'; 
 import { 
     Pencil, Trash2, Plus, MapPin, Hash, 
-    X, Save, Box, Palette, ChevronRight 
+    X, Save, Box, Palette, ChevronRight, Map 
 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -17,7 +17,7 @@ import TextInput from '@/Components/TextInput.vue';
 import InputLabel from '@/Components/InputLabel.vue';
 import InputError from '@/Components/InputError.vue';
 import PrimaryButton from '@/Components/PrimaryButton.vue';
-import Dropdown from '@/Components/Dropdown.vue'; // Sesuaikan path-nya
+import Dropdown from '@/Components/Dropdown.vue'; 
 
 const props = defineProps({
     rooms: Object,
@@ -246,12 +246,25 @@ const columns = [
 
                 <template #cell-coordinates="{ item }">
                     <div class="flex justify-center">
-                        <div v-if="item.coordinates" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-100 uppercase text-[9px] font-bold">
-                            Sudah Dimapping
-                        </div>
-                        <div v-else class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 text-gray-400 border border-gray-100 uppercase text-[9px] font-bold">
-                            Belum Ada Area
-                        </div>
+                        <Link 
+                            v-if="item.coordinates" 
+                            :href="route('floors.mapping', { id: item.floor_id, highlight_room: item.id })"
+                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 uppercase text-[10px] font-bold transition-all group"
+                            title="Lihat di Denah"
+                        >
+                            <span>SUDAH DIMAPPING</span>
+                            <Map class="w-3 h-3 group-hover:scale-110 transition-transform" />
+                        </Link>
+                        
+                        <Link 
+                            v-else 
+                            :href="route('floors.mapping', { id: item.floor_id, highlight_room: item.id })"
+                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 border border-gray-200 uppercase text-[10px] font-bold transition-all group"
+                            title="Mapping Ruangan Ini"
+                        >
+                            <span>BELUM ADA AREA</span>
+                            <Plus class="w-3 h-3 group-hover:scale-110 transition-transform" />
+                        </Link>
                     </div>
                 </template>
 
@@ -309,7 +322,7 @@ const columns = [
                             v-model="form.code"
                             type="text"
                             class="w-full"
-                            placeholder="Contoh: Ruang Lab AI"
+                            placeholder="Contoh: 1511000"
                             required
                         />
                         <InputError :message="form.errors.name" class="mt-1" />
@@ -321,7 +334,7 @@ const columns = [
                             v-model="form.name"
                             type="text"
                             class="w-full"
-                            placeholder="Contoh: Ruang Lab AI"
+                            placeholder="Contoh: Corridor A"
                             required
                         />
                         <InputError :message="form.errors.name" class="mt-1" />
@@ -410,7 +423,7 @@ const columns = [
                     <div class="flex justify-end gap-3 pt-4 border-t mt-6">
                         <button 
                             type="button" 
-                            @click="closeModal"
+                            @click="closeModal" 
                             class="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 transition-colors"
                         >
                             Batal

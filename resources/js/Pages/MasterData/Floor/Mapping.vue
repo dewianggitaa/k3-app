@@ -27,18 +27,19 @@ const form = useForm({
 });
 
 const mapStyle = computed(() => {
+    // Kursor Crosshair saat mode edit
     const blackCrosshair = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='1' x2='12' y2='23'></line><line x1='1' y1='12' x2='23' y2='12'></line></svg>") 12 12, crosshair`;
 
     return {
         transform: `translate(${offset.value.x}px, ${offset.value.y}px) scale(${zoomLevel.value})`,
         cursor: isDragging.value 
-            ? 'grabbing' // Default browser
+            ? 'grabbing' 
             : (selectedRoom.value && !isClosed.value ? blackCrosshair : 'grab')
     };
 });
 
+// --- Mouse & Zoom Logic ---
 const handleMouseDown = (event) => {
-    // Drag aktif jika: Klik tengah OR (Klik kiri DAN tidak sedang menggambar/pilih ruangan)
     if (event.button === 1 || (event.button === 0 && !selectedRoom.value)) {
         isDragging.value = true;
         startPan.value = { 
@@ -82,7 +83,7 @@ const handleMapClick = (event) => {
     const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
     const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
 
-    // Menutup polygon jika klik kembali ke titik awal
+    // Auto-close polygon
     if (form.coordinates.length >= 3) {
         const firstPoint = form.coordinates[0];
         const distance = Math.sqrt(Math.pow(xPercent - firstPoint.x, 2) + Math.pow(yPercent - firstPoint.y, 2));
@@ -100,7 +101,7 @@ const handleMapClick = (event) => {
 };
 
 const selectRoom = (room) => {
-    // Fitur UNSELECT: Jika klik ruangan yang sama, batalkan pilihan
+    // Unselect logic
     if (selectedRoom.value?.id === room.id) {
         selectedRoom.value = null;
         form.reset();
@@ -130,18 +131,34 @@ const submitMapping = () => {
             selectedRoom.value = null;
             isClosed.value = false;
             form.reset();
-            Swal.fire({ icon: 'success', title: 'Berhasil', text: 'Area berhasil disimpan', timer: 1500, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'Tersimpan!', timer: 1000, showConfirmButton: false });
         }
     });
 };
 
 const hexToRgba = (hex, opacity) => {
-    if (!hex) return `rgba(79, 70, 229, ${opacity})`;
+    if (!hex) return `rgba(59, 130, 246, ${opacity})`; // Default Blue
     let r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
-onMounted(() => window.addEventListener('mouseup', stopDragging));
+// --- Lifecycle ---
+onMounted(() => {
+    window.addEventListener('mouseup', stopDragging);
+
+    // Auto-Select dari URL
+    const params = new URLSearchParams(window.location.search);
+    const highlightRoomId = params.get('highlight_room');
+
+    if (highlightRoomId) {
+        const targetRoom = props.floor.rooms.find(r => r.id == highlightRoomId);
+        if (targetRoom) {
+            selectRoom(targetRoom);
+            // NOTIFIKASI DIHAPUS SESUAI REQUEST
+        }
+    }
+});
+
 onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
 </script>
 
@@ -180,7 +197,7 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
                                   selectedRoom?.id === room.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-500/10' : 'bg-white border-gray-100 text-gray-600 hover:border-indigo-200']"
                     >
                         <div class="flex items-center gap-3">
-                            <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: room.color }"></div>
+                            <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: room.color || '#ccc' }"></div>
                             <span class="font-medium">{{ room.name }}</span>
                         </div>
                         <div class="flex items-center gap-2">
@@ -234,21 +251,22 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
                         />
                         
                         <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="absolute top-0 left-0 w-full h-full pointer-events-none">
+                            
                             <polygon 
                                 v-for="room in floor.rooms" :key="'room-'+room.id"
                                 v-show="room.coordinates?.length > 0 && selectedRoom?.id !== room.id"
                                 :points="room.coordinates?.map(p => `${p.x},${p.y}`).join(' ')"
-                                :fill="hexToRgba(room.color, 0.2)" 
-                                :stroke="room.color" 
-                                stroke-width="0.15" 
+                                fill="rgba(156, 163, 175, 0.15)" 
+                                stroke="rgba(156, 163, 175, 0.5)" 
+                                :stroke-width="0.15 / zoomLevel" 
                             />
 
                             <g v-if="form.coordinates.length > 0">
                                 <component 
                                     :is="isClosed ? 'polygon' : 'polyline'"
                                     :points="form.coordinates.map(p => `${p.x},${p.y}`).join(' ')"
-                                    :fill="isClosed ? hexToRgba(selectedRoom?.color, 0.4) : 'transparent'"
-                                    :stroke="selectedRoom?.color" 
+                                    :fill="isClosed ? hexToRgba(selectedRoom?.color || '#3b82f6', 0.5) : 'transparent'"
+                                    :stroke="selectedRoom?.color || '#3b82f6'" 
                                     :stroke-width="0.4 / zoomLevel"
                                     :stroke-dasharray="isClosed ? '0' : '1, 1'"
                                 />

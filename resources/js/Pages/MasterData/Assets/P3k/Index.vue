@@ -22,7 +22,7 @@ import NavLink from '@/Components/NavLink.vue';
 const props = defineProps({
     p3ks: Object,
     p3k_types: Array,
-    rooms: Array,      
+    rooms: Array,       
     filters: Object,
 });
 
@@ -46,7 +46,6 @@ const toast = Swal.mixin({
     timer: 3000,
 });
 
-// FIXED: Menggunakan 'p3ks.index'
 watch(search, debounce((value) => {
     router.get(route('p3ks.index'), { search: value }, { preserveState: true, replace: true });
 }, 300));
@@ -69,7 +68,6 @@ const openEditModal = (item) => {
 };
 
 const submit = () => {
-    // FIXED: Menggunakan 'p3ks.update' dan 'p3ks.store'
     const action = isEditing.value 
         ? route('p3ks.update', form.id) 
         : route('p3ks.store');
@@ -98,7 +96,6 @@ const deleteP3k = (id, code) => {
         reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
-            // FIXED: Menggunakan 'p3ks.destroy'
             router.delete(route('p3ks.destroy', id), {
                 onSuccess: () => toast.fire({ icon: 'success', title: 'Berhasil dihapus' })
             });
@@ -123,10 +120,14 @@ const columns = [
         <template #header-title>
             <div class="flex flex-col items-start w-full">
                 
-                <div class="flex items-center gap-4 mb-4 px-4"> 
-                    <h2 class="font-bold text-lg text-gray-800 leading-tight">
-                         {{ route().current('apars.*') ? 'Data APAR' : (route().current('hydrants.*') ? 'Data Hydrant' : 'Data P3K') }}
-                    </h2>
+                <div class="flex items-center gap-4 mb-4 px-4"> <Link :href="route('dashboard')" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                        <ChevronLeft class="w-5 h-5 text-black" />
+                    </Link>
+                    <div>
+                        <h2 class="font-bold text-lg text-gray-800 leading-tight">
+                             {{ route().current('apars.*') ? 'Data APAR' : (route().current('hydrants.*') ? 'Data Hydrant' : 'Data P3K') }}
+                        </h2>
+                    </div>
                 </div>
             </div>
         </template>
@@ -203,9 +204,23 @@ const columns = [
 
                 <template #cell-action="{ item }">
                     <div class="flex justify-end gap-1">
-                        <button class="p-2 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-md">
+                        <div v-if="item.room?.floor_id">
+                            <Link 
+                                :href="route('assets.mapping', { 
+                                    floor: item.room.floor_id, 
+                                    target_id: item.id, 
+                                    target_type: 'p3k' 
+                                })"
+                                class="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-md flex items-center justify-center transition-colors"
+                                title="Atur Posisi di Peta"
+                            >
+                                <MapPin class="w-4 h-4" />
+                            </Link>
+                        </div>
+                        <div v-else class="p-2 text-gray-300 cursor-not-allowed" title="Lokasi belum diatur">
                             <MapPin class="w-4 h-4" />
-                        </button>
+                        </div>
+
                         <button @click="openEditModal(item)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md">
                             <Pencil class="w-4 h-4" />
                         </button>

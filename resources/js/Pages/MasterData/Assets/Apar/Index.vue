@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm, Link } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import Swal from 'sweetalert2';
 import { 
@@ -31,6 +31,7 @@ const showModal = ref(false);
 const isEditing = ref(false);
 
 const form = useForm({
+    id: null, // Tambahkan ID untuk update
     code: '',
     apar_type_id: '',
     room_id: '',
@@ -53,11 +54,13 @@ watch(search, debounce((value) => {
 const openCreateModal = () => {
     isEditing.value = false;
     form.reset();
+    form.clearErrors();
     showModal.value = true;
 };
 
 const openEditModal = (apar) => {
     isEditing.value = true;
+    form.clearErrors();
     form.id = apar.id;
     form.code = apar.code;
     form.apar_type_id = apar.apar_type_id;
@@ -181,7 +184,7 @@ const columns = [
 
                 <template #cell-location="{ item }">
                     <div class="text-[11px]">
-                        <p class="font-bold text-gray-700">{{ item.room?.name }}</p>
+                        <p class="font-bold text-gray-700">{{ item.room?.name || '-' }}</p>
                         <p class="text-gray-400">{{ item.room?.floor?.building?.name }} - {{ item.room?.floor?.name }}</p>
                     </div>
                 </template>
@@ -197,20 +200,38 @@ const columns = [
 
                 <template #cell-expired="{ item }">
                     <span class="text-xs text-gray-600 font-mono">
-                        {{ new Date(item.expired_at).toLocaleDateString('id-ID', {
+                        {{ item.expired_at ? new Date(item.expired_at).toLocaleDateString('id-ID', {
                             day: '2-digit',
                             month: 'short',
                             year: 'numeric'
-                        }) }}
+                        }) : '-' }}
                     </span>
                 </template>
 
                 <template #cell-action="{ item }">
                     <div class="flex justify-end gap-1">
-                        <button @click="openEditModal(item)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md">
+                        <div v-if="item.room?.floor_id">
+                            <Link 
+                                :href="route('assets.mapping', { 
+                                    floor: item.room.floor_id, 
+                                    target_id: item.id, 
+                                    target_type: 'apar' 
+                                })"
+                                class="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-md flex items-center justify-center transition-colors"
+                                title="Atur Posisi di Peta"
+                            >
+                                <MapPin class="w-4 h-4" />
+                            </Link>
+                        </div>
+                        <div v-else class="p-2 text-gray-300 cursor-not-allowed" title="Lokasi belum diatur">
+                            <MapPin class="w-4 h-4" />
+                        </div>
+
+                        <button @click="openEditModal(item)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">
                             <Pencil class="w-4 h-4" />
                         </button>
-                        <button @click="deleteApar(item.id, item.code)" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md">
+                        
+                        <button @click="deleteApar(item.id, item.code)" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
                             <Trash2 class="w-4 h-4" />
                         </button>
                     </div>
@@ -235,40 +256,45 @@ const columns = [
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <InputLabel value="Jenis APAR" />
-                            <select v-model="form.apar_type_id" class="w-full border-gray-300 rounded-lg text-sm">
+                            <select v-model="form.apar_type_id" class="w-full border-gray-300 rounded-lg text-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 <option value="" disabled>Pilih Jenis</option>
                                 <option v-for="type in aparTypes" :key="type.id" :value="type.id">{{ type.name }}</option>
                             </select>
+                            <InputError :message="form.errors.apar_type_id" />
                         </div>
                         <div>
                             <InputLabel value="Berat (kg)" />
                             <TextInput v-model="form.weight" type="number" class="w-full" />
+                            <InputError :message="form.errors.weight" />
                         </div>
                     </div>
 
                     <div>
                         <InputLabel value="Lokasi Ruangan" />
-                        <select v-model="form.room_id" class="w-full border-gray-300 rounded-lg text-sm">
+                        <select v-model="form.room_id" class="w-full border-gray-300 rounded-lg text-sm focus:border-indigo-500 focus:ring-indigo-500">
                             <option value="" disabled>Pilih Ruangan</option>
                             <option v-for="room in rooms" :key="room.id" :value="room.id">
                                 {{ room.floor?.building?.name }} - {{ room.name }}
                             </option>
                         </select>
+                        <InputError :message="form.errors.room_id" />
                     </div>
 
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <InputLabel value="Terakhir Isi" />
                             <TextInput v-model="form.last_refilled_at" type="date" class="w-full" />
+                            <InputError :message="form.errors.last_refilled_at" />
                         </div>
                         <div>
                             <InputLabel value="Kadaluarsa" />
                             <TextInput v-model="form.expired_at" type="date" class="w-full" />
+                            <InputError :message="form.errors.expired_at" />
                         </div>
                     </div>
 
                     <div class="flex justify-end gap-3 pt-4">
-                        <button type="button" @click="showModal = false" class="text-sm font-semibold text-gray-500">Batal</button>
+                        <button type="button" @click="showModal = false" class="text-sm font-semibold text-gray-500 hover:text-gray-700">Batal</button>
                         <PrimaryButton :disabled="form.processing">
                             <Save class="w-4 h-4 mr-2" /> Simpan
                         </PrimaryButton>

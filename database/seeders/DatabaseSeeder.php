@@ -33,15 +33,26 @@ class DatabaseSeeder extends Seeder
 
         // --- SIAPKAN DATA REFERENSI UNTUK USER ---
         $deptK3 = Department::where('name', 'K3')->first();
+        $deptIT = Department::where('name', 'IT')->first(); // Ambil IT untuk Admin
         $deptOthers = Department::where('name', '!=', 'K3')->get(); // Departemen selain K3
         
         $posTechnician = Position::where('name', 'Technician')->first();
-        $posStaff = Position::where('name', 'Staff')->first();
+        $posManager = Position::where('name', 'Manager')->first(); // Ambil Manager untuk Admin
         $allPositions = Position::all();
         
-        $password = Hash::make('password123'); // Password default: password
+        $password = Hash::make('password123'); // Password default: password123
 
-        // 3. BUAT 3 USER TIM K3 (Khusus Teknisi K3)
+        // 3. BUAT USER ADMIN (Super Admin)
+        User::create([
+            'name'          => 'Super Administrator',
+            'username'      => 'admin',
+            'password'      => $password,
+            'department_id' => $deptIT->id,     // Admin biasanya orang IT
+            'position_id'   => $posManager->id, // Jabatan tinggi
+            'is_active'     => true,
+        ]);
+
+        // 4. BUAT 3 USER TIM K3 (Khusus Teknisi K3)
         $k3Users = [
             ['name' => 'Budi K3', 'username' => 'budi_k3'],
             ['name' => 'Siti K3', 'username' => 'siti_k3'],
@@ -59,7 +70,7 @@ class DatabaseSeeder extends Seeder
             ]);
         }
 
-        // 4. BUAT 8 USER PIC (User Umum/Admin Ruangan)
+        // 5. BUAT 8 USER PIC (User Umum/Admin Ruangan)
         // Kita sebar mereka ke departemen selain K3
         $picUsers = [
             ['name' => 'Rina IT', 'username' => 'rina_it'],
