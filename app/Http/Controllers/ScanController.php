@@ -37,30 +37,21 @@ class ScanController extends Controller
         }
 
         if ($assetType === P3k::class) {
-            $inspectionId = null;
-
-            if (Auth::check()) {
-                $user = Auth::user();
-                $isK3 = optional($user->department)->name === 'K3';
+            $inspection = Inspection::where('assetable_type', $assetType)
+                ->where('assetable_id', $asset->id)
+                ->whereIn('status', ['overdue', 'pending'])
+                ->orderByRaw("FIELD(status, 'overdue', 'pending') ASC")
+                ->orderBy('due_date', 'asc')
+                ->first();
                 
-                $inspection = Inspection::where('assetable_type', $assetType)
-                    ->where('assetable_id', $asset->id)
-                    ->whereIn('status', ['pending', 'overdue', 'issue', 'need_revision', 'updated'])
-                    ->where(function($query) use ($user, $isK3) {
-                        $query->where('user_id', $user->id);
-                        if ($isK3) {
-                            $query->orWhereNull('user_id');
-                        }
-                    })->first();
-                
-                $inspectionId = $inspection ? $inspection->id : null;
-            }
+            $inspectionId = $inspection ? $inspection->id : null;
 
             return redirect()->route('p3k.menu', [
                 'id' => $asset->id, 
                 'inspection_id' => $inspectionId
             ]);
         }
+
 
         if (!Auth::check()) {
             return redirect()->guest(route('login'))->with('warning', 'Anda harus login untuk mengakses data ini.');

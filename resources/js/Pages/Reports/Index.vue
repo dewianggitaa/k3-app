@@ -10,7 +10,7 @@ import Pagination from '@/Components/Pagination.vue';
 
 const props = defineProps({
     activeTab: String,
-    assetsList: Object, // Menerima daftar aset dari Controller
+    assetsList: Object,
     filters: Object,
     reports: Object 
 });
@@ -23,25 +23,17 @@ const filterForm = ref({
 });
 
 const showExportModal = ref(false);
-const exportForm = ref({
-    start_date: '', end_date: '', activity_type: 'all', asset_code: 'all'
-});
+const exportForm = ref({ start_date: '', end_date: '', activity_type: 'all', asset_code: 'all' });
 
 const openExportModal = () => {
-    exportForm.value.start_date = filterForm.value.start_date;
-    exportForm.value.end_date = filterForm.value.end_date;
-    exportForm.value.activity_type = filterForm.value.activity_type;
-    exportForm.value.asset_code = filterForm.value.asset_code;
+    exportForm.value = { ...filterForm.value };
     showExportModal.value = true;
 };
 
 const generatePdf = () => {
-    const url = route('reports.export', {
-        tab: props.activeTab,
-        start_date: exportForm.value.start_date,
-        end_date: exportForm.value.end_date,
-        activity_type: exportForm.value.activity_type,
-        asset_code: exportForm.value.asset_code
+    const url = route('reports.export', { 
+        tab: props.activeTab, 
+        ...exportForm.value 
     });
     window.open(url, '_blank');
     showExportModal.value = false;
@@ -49,30 +41,28 @@ const generatePdf = () => {
 
 const changeTab = (tabName) => {
     router.get(route('reports.index'), {
-        tab: tabName,
-        start_date: filterForm.value.start_date,
-        end_date: filterForm.value.end_date,
-        activity_type: 'all',
-        asset_code: 'all' // Reset pilihan aset kalau pindah tab
+        tab: tabName, 
+        start_date: filterForm.value.start_date, 
+        end_date: filterForm.value.end_date, 
+        activity_type: 'all', 
+        asset_code: 'all'
     }, { preserveState: true, preserveScroll: true });
 };
 
 const applyFilter = () => {
     router.get(route('reports.index'), {
-        tab: props.activeTab,
-        start_date: filterForm.value.start_date,
-        end_date: filterForm.value.end_date,
-        activity_type: filterForm.value.activity_type,
-        asset_code: filterForm.value.asset_code
+        tab: props.activeTab, 
+        ...filterForm.value
     }, { preserveState: true, preserveScroll: true });
 };
 
 const formatDate = (dateString) => {
+    if (!dateString) return '-';
     const options = { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
     return new Date(dateString).toLocaleDateString('id-ID', options);
 };
 
-const columns = computed(() => {
+const columnsP3k = computed(() => {
     const cols = [
         { label: 'Waktu Kejadian', key: 'record_date', class: 'w-48' },
         { label: 'Tipe Aktivitas', key: 'action_type' },
@@ -85,10 +75,7 @@ const columns = computed(() => {
     return cols;
 });
 
-// Mengambil list aset yang sedang aktif sesuai tab
-const currentAssets = computed(() => {
-    return props.assetsList[props.activeTab] || [];
-});
+const currentAssets = computed(() => props.assetsList[props.activeTab] || []);
 </script>
 
 <template>
@@ -157,59 +144,122 @@ const currentAssets = computed(() => {
             </Card>
 
             <Card no-padding>
-                <div v-if="filterForm.asset_code !== 'all'" class="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-                    <div>
-                        <p class="text-xs font-bold text-indigo-500 uppercase tracking-wider">Menampilkan Data Khusus Aset:</p>
-                        <p class="text-lg font-extrabold text-indigo-900">{{ filterForm.asset_code }}</p>
-                    </div>
+                
+                <div v-if="activeTab === 'p3k'">
+                    <DataTable :items="reports.data" :columns="columnsP3k">
+                        <template #cell-record_date="{ item }">
+                            <div class="flex items-center gap-1.5 text-gray-600">
+                                <Calendar class="w-3.5 h-3.5 text-gray-400" />
+                                <span class="text-sm font-medium">{{ formatDate(item.record_date) }}</span>
+                            </div>
+                        </template>
+
+                        <template #cell-asset_code="{ item }">
+                            <span class="font-bold text-gray-800">{{ item.asset_code }}</span>
+                        </template>
+
+                        <template #cell-action_type="{ item }">
+                            <span :class="{
+                                    'bg-blue-100 text-blue-700 border-blue-200': item.action_type === 'PENAMBAHAN',
+                                    'bg-red-100 text-red-700 border-red-200': item.action_type === 'PEMAKAIAN',
+                                    'bg-orange-100 text-orange-700 border-orange-200': item.action_type === 'INSPEKSI RUTIN'
+                                }" 
+                                class="px-2.5 py-1 rounded-full text-xs font-bold border flex items-center justify-center w-fit whitespace-nowrap">
+                                {{ item.action_type }}
+                            </span>
+                        </template>
+
+                        <template #cell-actor="{ item }">
+                            <span class="text-sm font-medium text-gray-700">{{ item.actor }}</span>
+                        </template>
+
+                        <template #cell-details="{ item }">
+                            <div class="whitespace-normal min-w-[200px] max-w-sm break-words leading-snug">
+                                <span :class="item.details.includes('KRITIS') ? 'text-red-600 font-medium ' : 'text-black font-medium'" class="block">
+                                    {{ item.details.split('\n')[0] }}
+                                </span>
+                                <span v-if="item.details.split('\n')[1]" class="block text-[11px] mt-1.5 leading-tight italic text-gray-500">
+                                    {{ item.details.split('\n')[1] }}
+                                </span>
+                            </div>
+                        </template>
+                    </DataTable>
                 </div>
 
-                <DataTable :items="reports.data" :columns="columns">
-                    <template #cell-record_date="{ item }">
-                        <div class="flex items-center gap-1.5 text-gray-600">
-                            <Calendar class="w-3.5 h-3.5 text-gray-400" />
-                            <span class="text-sm font-medium">{{ formatDate(item.record_date) }}</span>
-                        </div>
-                    </template>
+                <div v-else class="overflow-x-auto w-full">
+                    <table class="w-full text-sm text-left text-gray-500">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b">
+                            <tr>
+                                <th class="px-4 py-3">No</th>
+                                <th v-if="filterForm.asset_code === 'all'" class="px-4 py-3">Kode Aset</th>
+                                <th class="px-4 py-3">Data Pelapor (PIC)</th>
+                                <th class="px-4 py-3">Hasil Inspeksi</th>
+                                <th class="px-4 py-3 bg-indigo-50 border-l border-indigo-100">Validasi K3</th>
+                                <th class="px-4 py-3 bg-indigo-50">Tindakan & Catatan</th>
+                                <th class="px-4 py-3 bg-indigo-50">Kondisi Akhir</th>
+                            </tr>
+                        </thead>
+                        <tbody v-for="(k3Report, index) in reports.data" :key="k3Report.id" class="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                            <tr v-for="(picReport, picIndex) in k3Report.pic_reports" :key="picReport.id">
+                                
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 font-medium text-gray-900 text-center border-r align-top">
+                                    {{ index + 1 }}
+                                </td>
+                                
+                                <td v-if="filterForm.asset_code === 'all' && picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 font-bold border-r align-top">
+                                    {{ k3Report.asset_code }}
+                                </td>
 
-                    <template #cell-asset_code="{ item }">
-                        <span class="font-bold text-gray-800">{{ item.asset_code }}</span>
-                    </template>
+                                <td class="px-4 py-3 border-r align-top">
+                                    <div class="font-semibold text-gray-800">{{ picReport.actor }}</div>
+                                    <div class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                        <Calendar class="w-3 h-3"/> {{ formatDate(picReport.record_date) }}
+                                    </div>
+                                </td>
 
-                    <template #cell-action_type="{ item }">
-                        <span :class="{
-                                'bg-blue-100 text-blue-700 border-blue-200': item.action_type === 'PENAMBAHAN',
-                                'bg-red-100 text-red-700 border-red-200': item.action_type === 'PEMAKAIAN',
-                                'bg-orange-100 text-orange-700 border-orange-200': item.action_type === 'INSPEKSI RUTIN'
-                            }" 
-                            class="px-2.5 py-1 rounded-full text-xs font-bold border flex items-center justify-center w-fit whitespace-nowrap">
-                            {{ item.action_type }}
-                        </span>
-                    </template>
+                                <td class="px-4 py-3 border-r align-top">
+                                    <span :class="{'text-red-600': picReport.status === 'KRITIS', 'text-green-600': picReport.status === 'SAFE', 'text-gray-400': picReport.status === '-'}" class="font-bold block">
+                                        {{ picReport.status }}
+                                    </span>
+                                    
+                                    <div v-if="picReport.status === 'KRITIS'" class="mt-2 p-2.5 bg-red-50 border-l-2 border-red-500 rounded-r shadow-sm">
+                                        <span class="text-[10px] font-bold text-red-800 uppercase tracking-wider block mb-1">Temuan Kerusakan:</span>
+                                        <span class="text-xs text-red-700 block whitespace-pre-line leading-snug">
+                                            {{ picReport.details ? picReport.details.replace('Kondisi: KRITIS\nRincian: ', '') : '' }}
+                                        </span>
+                                    </div>
+                                    
+                                    <div v-else-if="picReport.status === 'SAFE'" class="mt-2 text-xs text-green-700 font-medium italic">
+                                        ✓ Seluruh komponen standar normal.
+                                    </div>
 
-                    <template #cell-actor="{ item }">
-                        <span class="text-sm font-medium text-gray-700">{{ item.actor }}</span>
-                    </template>
+                                    <div v-else class="mt-2 text-xs text-gray-400 font-medium italic">
+                                        Belum ada laporan dari PIC.
+                                    </div>
+                                </td>
 
-                    <template #cell-details="{ item }">
-                        <div class="whitespace-normal min-w-[200px] max-w-sm break-words leading-snug">
-                            
-                            <span :class="{
-                                'text-red-600 font-medium ': item.details.split('\n')[0].includes('KRITIS'),
-                                'text-black font-medium': !item.details.split('\n')[0].includes('KRITIS')
-                            }" class="block">
-                                {{ item.details.split('\n')[0] }}
-                            </span>
-                            
-                            <span v-if="item.details.split('\n')[1]" 
-                                  :class="item.details.split('\n')[0].includes('KRITIS') ? 'text-gray-500' : 'text-gray-500'" 
-                                  class="block text-[11px] mt-1.5 leading-tight italic">
-                                {{ item.details.split('\n')[1] }}
-                            </span>
-                            
-                        </div>
-                    </template>
-                </DataTable>
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 bg-indigo-50/30 border-r align-top">
+                                    <div class="font-bold text-indigo-900">{{ k3Report.actor_k3 }}</div>
+                                    
+                                    <div v-if="k3Report.record_date_k3" class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                        <Calendar class="w-3 h-3"/> {{ formatDate(k3Report.record_date_k3) }}
+                                    </div>
+                                </td>
+
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 bg-indigo-50/30 border-r align-top text-gray-700">
+                                    {{ k3Report.tindakan }}
+                                </td>
+
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 bg-indigo-50/30 align-middle text-center">
+                                    <span :class="k3Report.kondisi_akhir === 'safe' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border">
+                                        {{ k3Report.kondisi_akhir }}
+                                    </span>
+                                </td>
+
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <div v-if="reports.data.length === 0" class="p-12 text-center text-gray-500">
                     <span class="text-4xl block mb-3">📭</span>
@@ -257,7 +307,7 @@ const currentAssets = computed(() => {
                     <label class="block text-xs font-bold text-gray-700 mb-1">Tipe Data yang Dicetak</label>
                     <select v-model="exportForm.activity_type" class="w-full rounded-lg border-gray-300 text-sm focus:ring-red-500">
                         <option value="all">Cetak Semua Aktivitas</option>
-                        <option value="usage">Hanya Cetak Mutasi Obat</option>
+                        <option value="usage">Hanya Cetak Riwayat Stok</option>
                         <option value="inspection">Hanya Cetak Hasil Inspeksi Fisik</option>
                     </select>
                 </div>
