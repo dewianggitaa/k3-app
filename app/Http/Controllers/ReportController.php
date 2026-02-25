@@ -6,6 +6,7 @@ use App\Models\Inspection;
 use App\Models\Apar;
 use App\Models\Hydrant;
 use App\Models\P3k;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -41,7 +42,6 @@ class ReportController extends Controller
 
         if ($tab === 'p3k') {
             if (in_array($activityType, ['all', 'usage'])) {
-                // ... (Usages query tetap sama persis) ...
                 $usages = DB::table('p3k_usages')->join('p3ks', 'p3k_usages.p3k_id', '=', 'p3ks.id')->join('p3k_items', 'p3k_usages.p3k_item_id', '=', 'p3k_items.id')->leftJoin('departments', 'p3k_usages.department_id', '=', 'departments.id')
                     ->whereBetween('p3k_usages.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                     ->when($assetCode !== 'all', fn($q) => $q->where('p3ks.code', $assetCode))
@@ -85,7 +85,6 @@ class ReportController extends Controller
             
             $allInspections = Inspection::with(['user.department', 'assetable'])
                 ->where('assetable_type', $modelClass)
-                // PERBAIKAN: Ambil semua yang sudah dikerjakan, bukan cuma 'completed'
                 ->whereNotIn('status', ['pending', 'overdue'])
                 ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                 ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [$modelClass], fn($q2) => $q2->where('code', $assetCode)))
@@ -119,10 +118,20 @@ class ReportController extends Controller
         $pdfView = 'pdf.' . $tab;
         $data = collect();
 
+        $supervisor = User::where('is_active', true)
+            ->whereHas('position', function($q) {
+                $q->where('name', 'Supervisor');
+            })
+            ->whereHas('department', function($q) {
+                $q->where('name', 'K3');
+            })
+            ->first();
+
+        $supervisorName = $supervisor ? $supervisor->name : '';
+
         if ($tab === 'p3k') {
             $queryInsp = Inspection::with(['user', 'assetable'])
                 ->where('assetable_type', P3k::class)
-                // PERBAIKAN: Ambil semua yang sudah dikerjakan
                 ->whereNotIn('status', ['pending', 'overdue'])
                 ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
             
@@ -154,7 +163,8 @@ class ReportController extends Controller
         $pdf = Pdf::loadView($pdfView, [
             'data' => $data, 'tab' => strtoupper($tab), 'startDate' => $startDate, 'endDate' => $endDate, 'selectedAsset' => $assetCode, 
             'printedBy' => auth()->user()->name ?? 'Sistem K3',
-            'printedByPosition' => auth()->user()->department->name ?? 'K3',
+            'printedByDepartment' => auth()->user()->department->name ?? 'K3',
+            'supervisor' => $supervisorName,
         ])->setPaper('a4', 'portrait');
 
         return $pdf->stream('Laporan_K3_' . strtoupper($tab) . '.pdf');
@@ -162,25 +172,25 @@ class ReportController extends Controller
 
     private function groupAndFormatK3Reports($inspections, $checklistParams, $itemNames)
     {
-        // Kelompokkan semua inspeksi berdasarkan ID Asetnya
         $groupedByAsset = $inspections->groupBy('assetable_id');
 
         return $groupedByAsset->map(function($assetInspections) use ($checklistParams, $itemNames) {
             $asset = $assetInspections->first()->assetable;
             
-            // 1. Ambil laporan PIC (Maksimal 2 terlama dalam periode ini)
             $picReports = $assetInspections->filter(fn($i) => optional($i->user->department)->name !== 'K3')
                 ->sortBy('updated_at')->take(2)
                 ->map(function($pic) use ($checklistParams, $itemNames) {
                     $detailString = $this->buildDetail($pic, $checklistParams, $itemNames);
 
+                    $reportData = is_string($pic->report_data) ? json_decode($pic->report_data, true) : $pic->report_data;
+
                     return [
                         'id' => $pic->id,
                         'actor' => $pic->user->name,
                         'record_date' => $pic->updated_at,
-                        // PERBAIKAN: Status MURNI dinilai dari temuan inspeksinya saat itu (Bukan dari status aset saat ini)
                         'status' => str_contains($detailString, 'KRITIS') ? 'KRITIS' : 'SAFE', 
-                        'details' => $detailString
+                        'details' => $detailString,
+                        'notes' => $reportData['notes'] ?? null
                     ];
                 })->values();
 
@@ -188,6 +198,18 @@ class ReportController extends Controller
                 ->sortByDesc('updated_at')->first();
 
             $reportDataK3 = $k3Report ? (is_string($k3Report->report_data) ? json_decode($k3Report->report_data, true) : $k3Report->report_data) : [];
+
+            $statusPenggantian = 'Tidak Diganti';
+            if (isset($reportDataK3['answers']) && is_array($reportDataK3['answers'])) {
+                foreach ($reportDataK3['answers'] as $paramId => $ans) {
+                    $val = is_array($ans) ? ($ans['response'] ?? null) : $ans;
+                    
+                    if (isset($checklistParams[$paramId]) && $checklistParams[$paramId]->input_type === 'date' && !empty($val)) {
+                        $statusPenggantian = 'Diganti<br><span style="font-size: 8px; color: #6b7280;">(Exp: ' . \Carbon\Carbon::parse($val)->format('d M Y') . ')</span>';
+                        break;
+                    }
+                }
+            }
 
             if ($picReports->isEmpty()) {
                  $picReports->push([
@@ -200,9 +222,10 @@ class ReportController extends Controller
                 'asset_code' => $asset->code ?? '-',
                 'actor_k3' => $k3Report->user->name ?? 'Belum Divalidasi K3',
                 'record_date_k3' => $k3Report->updated_at ?? null,
-                'tindakan' => $reportDataK3['admin_notes'] ?? $k3Report->notes ?? '-',
+                'tindakan' => $reportDataK3['notes'] ?? $reportDataK3['admin_notes'] ?? $k3Report->notes ?? '-',
                 'kondisi_akhir' => strtoupper($asset->status ?? 'SAFE'),
-                'pic_reports' => $picReports->toArray()
+                'pic_reports' => $picReports->toArray(),
+                'status_penggantian' => $statusPenggantian,
             ];
         })->values()->sortByDesc('record_date_k3');
     }
@@ -214,20 +237,29 @@ class ReportController extends Controller
 
         if (isset($report['answers']) && is_array($report['answers'])) {
             foreach ($report['answers'] as $paramId => $ans) {
-                $responseStr = is_array($ans) ? ($ans['response'] ?? '') : $ans;
+                // Ambil jawaban persis seperti di controller update
+                $userAnswer = is_array($ans) ? ($ans['response'] ?? null) : $ans;
                 
                 if (isset($checklistParams[$paramId])) {
                     $param = $checklistParams[$paramId];
                     
-                    $responseLower = strtolower(trim($responseStr));
-                    // PERBAIKAN: Tambahkan '?? \'\'' untuk mencegah error kalau nilai standar di database kosong
-                    $standardLower = strtolower(trim($param->standard_value ?? ''));
+                    // Kita bypass input angka/number karena sudah dicek di bagian quantities bawah
+                    if (($param->input_type ?? '') === 'number') {
+                        continue;
+                    }
 
-                    // Cek Cerdas: Pastikan nilai standar tidak kosong dan cek apakah ada di dalam jawaban
-                    if ($standardLower !== '' && !str_contains($responseLower, $standardLower)) {
-                        $anomalies[] = ($param->label ?? $param->name) . ': ' . $responseStr;
-                    } elseif ($standardLower === '' && $responseLower !== '') {
-                        $anomalies[] = ($param->label ?? $param->name) . ': ' . $responseStr;
+                    $standardVal = $param->standard_value ?? '';
+
+                    // JIKA STANDARNYA KOSONG DI DATABASE, KITA ABAIKAN (Supaya tidak false alarm)
+                    if (trim($standardVal) === '') {
+                        continue;
+                    }
+
+                    // LOGIKA SAMA PERSIS DENGAN FUNGSI UPDATE MILIKMU:
+                    // Jika ada jawaban, DAN jawabannya tidak sama dengan nilai standar -> Masuk Rincian Rusak
+                    if ($userAnswer && trim($userAnswer) != trim($standardVal)) {
+                        $label = $param->label ?? $param->name ?? 'Komponen';
+                        $anomalies[] = $label . ': ' . $userAnswer;
                     }
                 }
             }

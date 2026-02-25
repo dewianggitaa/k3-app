@@ -4,7 +4,7 @@ import { Head, useForm, router } from '@inertiajs/vue3';
 import { 
     Plus, Pencil, Trash2, Search, Filter, Check,
     CheckCircle2, Type, ToggleLeft, List, ListFilter,
-    Hash, AlignLeft
+    Hash, AlignLeft, Calendar1,
 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -145,13 +145,12 @@ const deleteParam = (id) => {
     });
 };
 
-// --- TABLE CONFIG ---
 const columns = [
     { label: '#', key: 'order', class: 'w-16 text-center' },
     { label: 'Pertanyaan & Opsi', key: 'label' },
-    { label: 'Tipe Input', key: 'type', class: 'w-40' },
-    { label: 'Standar Nilai', key: 'standard', class: 'w-48' },
-    { label: '', key: 'actions', class: 'w-24 text-right' },
+    { label: 'Tipe Input', key: 'type', class: 'w-40 text-center' },
+    { label: 'Standar Nilai', key: 'standard', class: 'w-48 text-center' },
+    { label: 'Aksi', key: 'actions', class: 'w-24 text-center' },
 ];
 
 // Helper Style Badge
@@ -163,6 +162,7 @@ const getInputBadge = (type) => {
         text:    { class: 'bg-gray-100 text-gray-700 border-gray-200', icon: Type, label: 'Teks' },
         number:  { class: 'bg-orange-100 text-orange-700 border-orange-200', icon: Hash, label: 'Angka' },
         textarea:{ class: 'bg-gray-100 text-gray-600 border-gray-200', icon: AlignLeft, label: 'Catatan' },
+        date    :{ class: 'bg-gray-100 text-gray-600 border-gray-200', icon: Calendar1, label: 'Tanggal' },
     };
     return styles[type] || styles.text;
 };
@@ -298,6 +298,7 @@ const getInputBadge = (type) => {
                                 <option value="text">Teks Singkat</option>
                                 <option value="number">Angka</option>
                                 <option value="textarea">Catatan Panjang</option>
+                                <option value="date">Tanggal</option>
                             </select>
                             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
                                 <List class="w-4 h-4" />
@@ -348,8 +349,7 @@ const getInputBadge = (type) => {
                             <option v-for="opt in form.options" :key="opt" :value="opt">{{ opt }}</option>
                         </select>
 
-                        <input v-else v-model="form.standard_value" type="text" required class="w-full rounded-lg border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="Nilai yang diharapkan...">
-                    </div>
+                        <input v-else-if="form.input_type !== 'date'" v-model="form.standard_value" type="text" required class="w-full rounded-lg border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="Nilai yang diharapkan...">                    </div>
 
                     <div class="flex justify-end gap-3 pt-2">
                         <button type="button" @click="showModal = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors">

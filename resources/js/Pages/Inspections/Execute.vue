@@ -66,14 +66,13 @@ onMounted(() => {
     });
 });
 
-// --- ACTIONS ---
 const nextStep = async () => {
     if (isNotesStep.value) return; 
 
-    // Validasi Sederhana
     if (currentParam.value) {
         const answer = form.answers_map[currentParam.value.id];
-        if (answer === undefined || answer === null || answer === '') {
+        
+        if ((answer === undefined || answer === null || answer === '') && currentParam.value.input_type !== 'date') {
             Swal.fire({
                 toast: true,
                 position: 'top',
@@ -271,6 +270,20 @@ const submit = () => {
                                 <AlertTriangle class="w-5 h-5" />
                                 <span class="font-bold text-sm">Perlu Restock!</span>
                             </div>
+                        </div>
+                        <div v-else-if="currentParam.input_type === 'date'" class="w-full mt-4">
+                            <div class="text-sm font-medium text-amber-600 bg-amber-50 p-3 rounded-xl mb-3 border border-amber-100 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                                </svg>
+                                <span>* Hanya isi jika melakukan pergantian/pengisian ulang APAR</span>
+                            </div>
+
+                            <input 
+                                type="date" 
+                                v-model="form.answers_map[currentParam.id]"
+                                class="w-full p-5 rounded-2xl border-2 border-gray-200 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition-all text-xl text-gray-700 font-medium bg-white"
+                            >
                         </div>
                     </template>
 

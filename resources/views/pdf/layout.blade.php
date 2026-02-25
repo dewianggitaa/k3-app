@@ -40,12 +40,12 @@
     <div class="signature">
         <p>Diketahui Oleh,</p>
         <br><br><br><br>
-        <p style="border-bottom: 1px solid #000; margin-bottom: 5px;"><b>{{ $printedBy }}</b></p>
-        <p style="margin:0;"><i>{{ $printedByPosition }}</i></p>
+        <p style="border-bottom: 1px solid #000; margin-bottom: 5px;"><b>{{ $supervisor }}</b></p>
+        <p style="margin:0;"><i>Supervisor K3</i></p>
     </div>
     <div class="clear"></div>
     <div class="footer">
-        <p>Dokumen dicetak dari Sistem pada {{ now()->format('d/m/Y H:i:s') }} WIB.</p>
+        <p>Dokumen dicetak oleh {{ $printedBy }} - {{ $printedByDepartment }} pada {{ now()->format('d/m/Y H:i:s') }} WIB.</p>
     </div>
 </body>
 </html>

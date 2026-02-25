@@ -35,7 +35,7 @@ class ChecklistParameterController extends Controller
         $validator = Validator::make($request->all(), [
             'asset_type'     => 'required|string',
             'label'          => 'required|string|max:255',
-            'input_type'     => 'required|in:text,number,boolean,radio,select,textarea',
+            'input_type'     => 'required|in:text,number,boolean,radio,select,textarea,date',
             'options'        => 'nullable|array',
             'standard_value' => 'nullable', 
             
@@ -46,12 +46,14 @@ class ChecklistParameterController extends Controller
             return redirect()->back()->withErrors($validator);
         }
 
-        // Logic pembersihan data
         $data = $request->all();
         
-        // Jika bukan pilihan ganda, kosongkan options
         if (!in_array($data['input_type'], ['radio', 'select'])) {
             $data['options'] = null;
+        }
+        
+        if (in_array($data['input_type'], ['date', 'textarea'])) {
+            $data['standard_value'] = null;
         }
 
         ChecklistParameter::create($data);
