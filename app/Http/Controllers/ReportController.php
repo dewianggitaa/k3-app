@@ -60,7 +60,6 @@ class ReportController extends Controller
             if (in_array($activityType, ['all', 'inspection'])) {
                 $inspections = Inspection::with(['user', 'assetable'])
                     ->where('assetable_type', P3k::class)
-                    // PERBAIKAN: Ambil semua yang sudah dikerjakan, bukan cuma 'completed'
                     ->whereNotIn('status', ['pending', 'overdue'])
                     ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                     ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [P3k::class], fn($q2) => $q2->where('code', $assetCode)))
@@ -111,6 +110,7 @@ class ReportController extends Controller
         $startDate = $request->query('start_date');
         $endDate = $request->query('end_date');
         $assetCode = $request->query('asset_code', 'all'); 
+        $activityType = $request->query('activity_type', 'all'); 
 
         $checklistParams = DB::table('checklist_parameters')->get()->keyBy('id')->toArray();
         $itemNames = DB::table('p3k_items')->pluck('name', 'id')->toArray();
@@ -130,28 +130,54 @@ class ReportController extends Controller
         $supervisorName = $supervisor ? $supervisor->name : '';
 
         if ($tab === 'p3k') {
-            $queryInsp = Inspection::with(['user', 'assetable'])
-                ->where('assetable_type', P3k::class)
-                ->whereNotIn('status', ['pending', 'overdue'])
-                ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+            $dataP3k = collect();
             
-            if ($assetCode !== 'all') {
-                $queryInsp->whereHasMorph('assetable', [P3k::class], fn($q) => $q->where('code', $assetCode));
+            if (in_array($activityType, ['all', 'usage'])) {
+                $usages = DB::table('p3k_usages')->join('p3ks', 'p3k_usages.p3k_id', '=', 'p3ks.id')->join('p3k_items', 'p3k_usages.p3k_item_id', '=', 'p3k_items.id')->leftJoin('departments', 'p3k_usages.department_id', '=', 'departments.id')
+                    ->whereBetween('p3k_usages.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+                    ->when($assetCode !== 'all', fn($q) => $q->where('p3ks.code', $assetCode))
+                    ->select('p3k_usages.id', 'p3k_usages.created_at as record_date', 'p3ks.code as asset_code', 'p3k_usages.type', 'p3k_usages.reporter_name', 'departments.name as department_name', 'p3k_items.name as item_name', 'p3k_usages.qty', 'p3k_usages.notes')
+                    ->get()->map(function ($item) {
+                        return [
+                            'id' => 'usage_' . $item->id, 'record_date' => $item->record_date, 'asset_code' => $item->asset_code,
+                            'action_type' => $item->type === 'in' ? 'PENAMBAHAN' : 'PEMAKAIAN',
+                            'actor' => $item->reporter_name . ($item->department_name ? " ({$item->department_name})" : ''),
+                            'details' => "Item P3K: {$item->item_name}\nJumlah: {$item->qty} " . ($item->notes ? " (Catatan: {$item->notes})" : ''),
+                        ];
+                    });
+                $dataP3k = $dataP3k->concat($usages);
             }
             
-            $data = $queryInsp->get()->map(function ($inspection) use ($checklistParams, $itemNames) {
-                return [
-                    'record_date' => $inspection->updated_at, 'asset_code' => $inspection->assetable->code ?? '-',
-                    'action_type' => 'INSPEKSI RUTIN', 'actor' => $inspection->user->name ?? 'Sistem K3', 
-                    'details' => $this->buildDetail($inspection, $checklistParams, $itemNames),
-                ];
-            });
+            if (in_array($activityType, ['all', 'inspection'])) {
+                $queryInsp = Inspection::with(['user', 'assetable'])
+                    ->where('assetable_type', P3k::class)
+                    ->whereNotIn('status', ['pending', 'overdue'])
+                    ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+                
+                if ($assetCode !== 'all') {
+                    $queryInsp->whereHasMorph('assetable', [P3k::class], fn($q) => $q->where('code', $assetCode));
+                }
+                
+                $dataInsp = $queryInsp->get()->map(function ($inspection) use ($checklistParams, $itemNames) {
+                    return [
+                        'record_date' => $inspection->updated_at, 
+                        'asset_code' => $inspection->assetable->code ?? '-',
+                        'action_type' => 'INSPEKSI RUTIN', 
+                        'actor' => $inspection->user->name ?? 'Sistem K3', 
+                        'details' => $this->buildDetail($inspection, $checklistParams, $itemNames),
+                    ];
+                });
+                
+                $dataP3k = $dataP3k->concat($dataInsp);
+            }
+
+            $data = $dataP3k->sortByDesc('record_date')->values();
+
         } else {
             $modelClass = $tab === 'apar' ? Apar::class : Hydrant::class;
             
             $allInspections = Inspection::with(['user.department', 'assetable'])
                 ->where('assetable_type', $modelClass)
-                // PERBAIKAN: Ambil semua yang sudah dikerjakan
                 ->whereNotIn('status', ['pending', 'overdue'])
                 ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                 ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [$modelClass], fn($q2) => $q2->where('code', $assetCode)))
@@ -237,26 +263,21 @@ class ReportController extends Controller
 
         if (isset($report['answers']) && is_array($report['answers'])) {
             foreach ($report['answers'] as $paramId => $ans) {
-                // Ambil jawaban persis seperti di controller update
                 $userAnswer = is_array($ans) ? ($ans['response'] ?? null) : $ans;
                 
                 if (isset($checklistParams[$paramId])) {
                     $param = $checklistParams[$paramId];
                     
-                    // Kita bypass input angka/number karena sudah dicek di bagian quantities bawah
                     if (($param->input_type ?? '') === 'number') {
                         continue;
                     }
 
                     $standardVal = $param->standard_value ?? '';
 
-                    // JIKA STANDARNYA KOSONG DI DATABASE, KITA ABAIKAN (Supaya tidak false alarm)
                     if (trim($standardVal) === '') {
                         continue;
                     }
 
-                    // LOGIKA SAMA PERSIS DENGAN FUNGSI UPDATE MILIKMU:
-                    // Jika ada jawaban, DAN jawabannya tidak sama dengan nilai standar -> Masuk Rincian Rusak
                     if ($userAnswer && trim($userAnswer) != trim($standardVal)) {
                         $label = $param->label ?? $param->name ?? 'Komponen';
                         $anomalies[] = $label . ': ' . $userAnswer;
@@ -265,7 +286,6 @@ class ReportController extends Controller
             }
         }
         
-        // P3K Logic for Item Quantities
         if (isset($report['quantities']) && is_array($report['quantities'])) {
             foreach ($report['quantities'] as $itemId => $qtyData) {
                 $actual = (int) ($qtyData['actual'] ?? 0);

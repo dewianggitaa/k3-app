@@ -56,9 +56,40 @@ const form = useForm({
     location_data: null,
 });
 
-const filteredAssets = computed(() => {
+const groupedAssets = computed(() => {
     const currentData = assetConfig.value[activeType.value]?.data || [];
-    return currentData.filter(a => 
+    
+    // Kita hanya grouping kalau tipenya APAR
+    if (activeType.value !== 'apar') return currentData;
+
+    const groups = {};
+    currentData.forEach(asset => {
+        // Cek apakah kodenya pakai akhiran -A atau -B
+        const isDouble = /-[AB]$/i.test(asset.code);
+        const baseCode = isDouble ? asset.code.replace(/-[AB]$/i, '') : asset.code;
+
+        if (!groups[baseCode]) {
+            groups[baseCode] = {
+                ...asset,        // Ambil data dasar dari asset pertama yang ketemu
+                code: baseCode,  // Pakai kode tanpa -A/-B
+                original_items: [],
+                is_double: false
+            };
+        }
+        
+        groups[baseCode].original_items.push(asset);
+        
+        if (groups[baseCode].original_items.length > 1) {
+            groups[baseCode].is_double = true;
+        }
+    });
+
+    return Object.values(groups);
+});
+
+const filteredAssets = computed(() => {
+    // Gunakan groupedAssets.value, jangan assetConfig lagi
+    return groupedAssets.value.filter(a => 
         a.code?.toLowerCase().includes(searchQuery.value.toLowerCase())
     );
 });
@@ -171,6 +202,9 @@ const toast = Swal.mixin({
                                 <Box class="w-3.5 h-3.5 text-gray-400" />
                                 <span :class="['font-bold text-sm', selectedAsset?.id === asset.id ? 'text-indigo-700' : 'text-gray-700']">
                                     {{ asset.code }}
+                                    <span v-if="asset.is_double" class="ml-1.5 text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 uppercase">
+                                        2 Tabung
+                                    </span>
                                 </span>
                             </div>
                             <p class="text-[11px] text-gray-500">Ruang: {{ asset.room?.name || 'N/A' }}</p>
@@ -195,7 +229,7 @@ const toast = Swal.mixin({
                     v-model="form.location_data"
                     :floor="floor"
                     :rooms="rooms"
-                    :assets="assetConfig[activeType].data"
+                    :assets="groupedAssets"
                     :selectedAsset="selectedAsset"
                     :iconPath="assetConfig[activeType].icon"
                     @onAreaError="(name) => toast.fire({ icon: 'warning', title: `Klik di area ${name}` })"

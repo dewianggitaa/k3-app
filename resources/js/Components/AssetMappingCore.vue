@@ -111,25 +111,25 @@ const hexToRgba = (hex, opacity) => {
 onMounted(() => window.addEventListener('mouseup', stopDragging));
 onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
 
-const showInfoModal = ref(false);
 const activeInfoId = ref(null);
-const selectedAssetInfo = ref(null);
 
 const toggleInfo = (id) => {
     activeInfoId.value = activeInfoId.value === id ? null : id;
 };
 
-const openAssetInfo = (asset) => {
-    // Kita tebak tipenya dari kode atau props yang ada
-    let type = 'apar';
-    if (asset.code?.includes('HYD')) type = 'hydrant'; // Sesuaikan logic prefix kode kamu
-    if (asset.code?.includes('P3K')) type = 'p3k';
+// Deteksi otomatis tipe aset dari kodenya
+const getAssetType = (asset) => {
+    if (!asset || !asset.code) return 'apar';
+    const code = asset.code.toLowerCase();
+    if (code.includes('hyd')) return 'hydrant';
+    if (code.includes('p3k')) return 'p3k';
+    return 'apar';
+};
 
-    selectedAssetInfo.value = {
-        ...asset,
-        assetType: type
-    };
-    showInfoModal.value = true;
+const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 </script>
 
@@ -177,33 +177,80 @@ const openAssetInfo = (asset) => {
                         </div>
 
                         <div v-if="activeInfoId === asset.id" 
-                            class="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-[999] bg-white shadow-xl border border-gray-200 rounded-lg p-3 w-44 pointer-events-auto">
+                            class="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-[999] bg-white shadow-2xl border border-gray-200 rounded-xl w-60 pointer-events-auto overflow-hidden">
                             
-                            <div class="flex flex-col gap-0.5">
-                                <p class="text-[11px] font-bold text-gray-900 truncate">{{ asset.code }}</p>
-                                <div class="flex items-center gap-1.5 mt-1">
-                                    <span class="w-2 h-2 rounded-full" :class="asset.status === 'safe' ? 'bg-green-500' : 'bg-red-500'"></span>
-                                    <p class="text-[10px] text-gray-500 uppercase font-black tracking-wider">{{ asset.status || 'No Status' }}</p>
+                            <div class="p-2 text-white flex justify-between items-center bg-primary">
+                                <div>
+                                    <p class="text-[11px] font-bold truncate uppercase">{{ asset.is_double ? 'KOTAK' : getAssetType(asset) }} {{ asset.code }}</p>
+                                    <p class="text-[8px] opacity-90">{{ asset.room?.name || 'N/A' }}</p>
                                 </div>
-                                <p class="text-[9px] text-gray-400 mt-1 border-t pt-1">{{ asset.room?.name }}</p>
                             </div>
 
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white text-white drop-shadow-sm"></div>
+                            <div class="p-3 space-y-3">
+                                <div v-for="item in (asset.is_double ? asset.original_items : [asset])" :key="item.id" 
+                                     class="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                                    
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-[10px] font-black text-gray-800 uppercase">
+                                            {{ asset.is_double ? 'TABUNG ' + item.code.split('-').pop() : 'INFO ASET' }}
+                                        </span>
+                                        <span :class="[
+                                            'text-[8px] px-2 py-0.5 rounded-full font-black border uppercase tracking-wider',
+                                            item.status?.toLowerCase() === 'safe' ? 'bg-green-50 text-green-700 border-green-200' : (item.status?.toLowerCase() === 'kritis' || item.status?.toLowerCase() === 'critical' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-100 text-gray-500 border-gray-200')
+                                        ]">
+                                            {{ item.status || 'BELUM CEK' }}
+                                        </span>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-y-1.5 text-[9px]">
+                                        
+                                        <span class="text-gray-400">Tipe Aset:</span>
+                                        <span class="text-gray-900 font-bold text-right truncate">
+                                            {{ item.type?.name || item.apar_type?.name || item.p3k_type?.name || item.hydrant_type?.name || '-' }}
+                                        </span>
+
+                                        <template v-if="getAssetType(asset) === 'apar'">
+                                            <span class="text-gray-400">Berat (Weight):</span>
+                                            <span class="text-gray-900 font-bold text-right">{{ item.weight ? item.weight + ' Kg' : '-' }}</span>
+                                            
+                                            <span class="text-gray-400">Terakhir Diisi:</span>
+                                            <span class="text-gray-900 font-bold text-right">{{ formatDate(item.last_refilled_at) }}</span>
+                                            
+                                            <span class="text-gray-400">Kadaluarsa:</span>
+                                            <span class="text-gray-900 font-bold text-right">{{ formatDate(item.expired_at) }}</span>
+                                        </template>
+                                    </div>
+
+                                    <div v-if="item.status?.toLowerCase() === 'critical' || item.status?.toLowerCase() === 'kritis'" 
+                                         class="mt-2 text-[9px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-100 leading-snug">
+                                        <strong class="block mb-0.5 uppercase text-[8px] tracking-wider">Detail Kerusakan:</strong>
+                                        {{ item.last_finding || item.critical_details || 'Hubungi petugas untuk detail lebih lanjut.' }}
+                                    </div>
+                                </div>
+
+                                <div class="pt-1">
+                                    <Link :href="route('reports.index', { tab: getAssetType(asset), asset_code: asset.code })" 
+                                          class="block w-full text-center py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[9px] font-bold transition">
+                                        LIHAT RIWAYAT DETAIL
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white"></div>
                         </div>
 
-                        <img 
-                            :src="iconPath" 
-                            @click.stop="toggleInfo(asset.id)"
-                            class="w-5 h-5 relative z-10 drop-shadow-md cursor-pointer transition-all duration-200" 
-                            :class="{'scale-[1.7] brightness-125 z-20': asset.id === selectedAsset?.id || activeInfoId === asset.id}" 
-                        />
+                        <div class="relative flex items-center justify-center">
+                            <img 
+                                :src="asset.is_double ? '/icon-apar2.png' : iconPath" 
+                                @click.stop="toggleInfo(asset.id)"
+                                class="w-6 h-6 relative z-10 drop-shadow-md cursor-pointer transition-all duration-200" 
+                                :class="{'scale-[1.7] brightness-125 z-20': asset.id === selectedAsset?.id || activeInfoId === asset.id}" 
+                            />
+                        </div>
+
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-
-
-    
 </template>
