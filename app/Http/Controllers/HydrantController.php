@@ -12,11 +12,11 @@ class HydrantController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Hydrant::query()->with(['hydrant_type', 'room.floor.building']);
+        $query = Hydrant::query()->with(['type', 'room.floor.building']);
 
         if ($request->search) {
             $query->where('code', 'like', "%{$request->search}%")
-                  ->orWhereHas('hydrant_type', function($q) use ($request) {
+                  ->orWhereHas('type', function($q) use ($request) {
                       $q->where('name', 'like', "%{$request->search}%");
                   });
         }

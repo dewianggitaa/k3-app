@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId("apar_type_id")->constrained("apar_types");
             $table->foreignId('room_id')->constrained('rooms');
             $table->enum('status', ['safe', 'warning', 'critical'])->default('safe');
-            $table->integer('weight');
+            $table->decimal('weight');
             $table->date('last_refilled_at')->nullable();
             $table->date('expired_at');
             $table->json('location_data')->nullable();

@@ -13,11 +13,11 @@ class AparController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Apar::query()->with(['apar_type', 'room.floor.building']);
+        $query = Apar::query()->with(['type', 'room.floor.building']);
 
         if ($request->search) {
             $query->where('code', 'like', "%{$request->search}%")
-                  ->orWhereHas('apar_type', function($q) use ($request) {
+                  ->orWhereHas('type', function($q) use ($request) {
                       $q->where('name', 'like', "%{$request->search}%");
                   });
         }
@@ -36,7 +36,7 @@ class AparController extends Controller
             'code' => 'required|string|unique:apars,code',
             'apar_type_id' => 'required|exists:apar_types,id',
             'room_id' => 'required|exists:rooms,id',
-            'weight' => 'required|integer',
+            'weight' => 'required|numeric',
             'expired_at' => 'required|date',
             'last_refilled_at' => 'nullable|date',
         ]);
@@ -51,7 +51,7 @@ class AparController extends Controller
             'code' => 'required|string|unique:apars,code,' . $apar->id,
             'apar_type_id' => 'required|exists:apar_types,id',
             'room_id' => 'required|exists:rooms,id',
-            'weight' => 'required|integer',
+            'weight' => 'required|numeric',
             'expired_at' => 'required|date',
             'last_refilled_at' => 'nullable|date',
         ]);

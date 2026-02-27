@@ -14,6 +14,7 @@ use App\Http\Controllers\InspectionExecutionController;
 use App\Http\Controllers\ScanController;
 use App\Http\Controllers\ChecklistParameterController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\AssetInspectionController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -49,6 +50,9 @@ Route::middleware('auth')->group(function () {
         ->name('assets.mapping');
     Route::post('/mapping/assets/update', [AssetMappingController::class, 'updateLocation'])
         ->name('assets.update-location');
+
+    Route::get('/assets/{type}/{id}/latest-inspection', [App\Http\Controllers\AssetInspectionController::class, 'getLatest'])
+        ->name('assets.latest-inspection');
 
     Route::resource('p3ks', App\Http\Controllers\P3kController::class);
     Route::resource('apars', App\Http\Controllers\AparController::class);

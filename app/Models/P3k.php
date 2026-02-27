@@ -12,7 +12,7 @@ class P3k extends Model
         'location_data' => 'array',
     ];
 
-    public function p3k_type()
+    public function type()
     {
         return $this->belongsTo(P3kType::class, 'p3k_type_id');
     }
@@ -25,5 +25,15 @@ class P3k extends Model
     public function room()
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function inspections()
+    {
+        return $this->morphMany(Inspection::class, 'assetable');
+    }
+
+    public function latest_inspection()
+    {
+        return $this->morphOne(Inspection::class, 'assetable')->latestOfMany();
     }
 }

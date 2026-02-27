@@ -177,7 +177,7 @@ const columns = [
 
                 <template #cell-type="{ item }">
                     <span class="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
-                        {{ item.p3k_type?.name }}
+                        {{ item.type?.name }}
                     </span>
                 </template>
 

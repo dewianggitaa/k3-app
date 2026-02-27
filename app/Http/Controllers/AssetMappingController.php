@@ -24,21 +24,21 @@ class AssetMappingController extends Controller
         $p3ks = P3k::whereHas('room', function ($query) use ($floor_id) {
                 $query->where('floor_id', $floor_id);
             })
-            ->with('room:id,name')
+            ->with('room:id,name', 'type:id,name')
             ->orderBy('code', 'asc')
             ->get();
 
         $apars = Apar::whereHas('room', function ($query) use ($floor_id) {
                 $query->where('floor_id', $floor_id);
             })
-            ->with('room:id,name')
+            ->with('room:id,name', 'type:id,name')
             ->orderBy('code', 'asc')
             ->get();
         
          $hydrants = Hydrant::whereHas('room', function ($query) use ($floor_id) {
                 $query->where('floor_id', $floor_id);
             })
-            ->with('room:id,name')
+            ->with('room:id,name', 'type:id,name')
             ->orderBy('code', 'asc')
             ->get(); 
 
@@ -71,24 +71,14 @@ class AssetMappingController extends Controller
 
         try {
             $asset = $modelClass::findOrFail($request->id);
-            
-            // --- LOGIKA MAPPING DOUBLE APAR ---
-            // Cek apakah ini APAR dan kodenya berakhiran -A atau -B (Case Insensitive)
             if ($type === 'apar' && preg_match('/-[A-B]$/i', $asset->code)) {
-                
-                // Hapus akhiran -A atau -B untuk mendapatkan Base Code
-                // Contoh: "APAR-03M1001-A" menjadi "APAR-03M1001"
                 $baseCode = preg_replace('/-[A-B]$/i', '', $asset->code);
-
-                // Update massal semua APAR yang berawalan Base Code tersebut
-                // Pakai LIKE agar -A dan -B kena update semua ke koordinat yang sama
                 $modelClass::where('code', 'LIKE', $baseCode . '-%')
                     ->update([
                         'location_data' => $request->location_data ? json_encode($request->location_data) : null
                     ]);
                     
             } else {
-                // Update normal untuk P3K, Hydrant, atau Single APAR
                 $asset->update([
                     'location_data' => $request->location_data
                 ]);
@@ -99,7 +89,6 @@ class AssetMappingController extends Controller
                 ? "Posisi {$typeName} {$asset->code} berhasil diperbarui." 
                 : "Posisi {$typeName} {$asset->code} berhasil di-reset.";
 
-            // Modifikasi pesan khusus untuk Double APAR agar admin tahu
             if ($type === 'apar' && preg_match('/-[A-B]$/i', $asset->code)) {
                 $message = $request->location_data 
                     ? "Posisi Kotak {$typeName} {$baseCode} (A & B) berhasil diperbarui." 

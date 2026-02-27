@@ -21,29 +21,29 @@ class Apar extends Model
         'location_data',
     ];
 
-    /**
-     * Casting attributes.
-     * location_data otomatis jadi array/object di JS
-     */
     protected $casts = [
         'location_data' => 'array',
         'last_refilled_at' => 'date',
         'expired_at' => 'date',
     ];
 
-    /**
-     * Relasi ke Tipe APAR (CO2, Powder, Foam, dll)
-     */
-    public function apar_type(): BelongsTo
+    public function type(): BelongsTo
     {
-        return $this->belongsTo(AparType::class);
+        return $this->belongsTo(AparType::class, 'apar_type_id');
     }
 
-    /**
-     * Relasi ke Ruangan
-     */
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function inspections()
+    {
+        return $this->morphMany(Inspection::class, 'assetable');
+    }
+
+    public function latest_inspection()
+    {
+        return $this->morphOne(Inspection::class, 'assetable')->latestOfMany();
     }
 }

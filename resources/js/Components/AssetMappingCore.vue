@@ -2,6 +2,53 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { ZoomIn, ZoomOut, Maximize, X, MapPin, Droplets, Flame, ClipboardList } from 'lucide-vue-next';
 import { Link } from '@inertiajs/vue3';
+import Swal from 'sweetalert2';
+import axios from 'axios';
+
+const toast = Swal.mixin({
+    toast: true,
+    position: 'top-end',
+    showConfirmButton: false,
+    timer: 3000,
+});
+
+const isLoadingDetail = ref(false);
+const isSlideoverOpen = ref(false);
+const detailAsset = ref(null);
+
+const openDetail = async(item) => {
+    detailAsset.value = { ...item, checklist_results: [] }; 
+    isSlideoverOpen.value = true; 
+    activeInfoId.value = null; 
+    isLoadingDetail.value = true;
+
+    try {
+        const type = getAssetType(item);
+        const response = await axios.get(`/assets/${type}/${item.id}/latest-inspection`);
+        
+        detailAsset.value.checklist_results = response.data.results;
+        console.log("Data inspeksi berhasil diambil:", response.data);
+
+    } catch (error) {
+        console.error("Gagal mengambil data inspeksi:", error);
+        
+        const errorMessage = error.response?.data?.message || 'Gagal memuat detail inspeksi. Coba lagi ya.';
+        toast.fire({ 
+            icon: 'error', 
+            title: errorMessage 
+        });
+
+    } finally {
+        isLoadingDetail.value = false; 
+    }   
+};
+
+const closeDetail = () => {
+    isSlideoverOpen.value = false;
+    setTimeout(() => { 
+        detailAsset.value = null; 
+    }, 300);
+};
 
 const mapStyle = computed(() => {
     const blackCrosshair = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='1' x2='12' y2='23'></line><line x1='1' y1='12' x2='23' y2='12'></line></svg>") 12 12, crosshair`;
@@ -117,7 +164,6 @@ const toggleInfo = (id) => {
     activeInfoId.value = activeInfoId.value === id ? null : id;
 };
 
-// Deteksi otomatis tipe aset dari kodenya
 const getAssetType = (asset) => {
     if (!asset || !asset.code) return 'apar';
     const code = asset.code.toLowerCase();
@@ -181,12 +227,12 @@ const formatDate = (dateString) => {
                             
                             <div class="p-2 text-white flex justify-between items-center bg-primary">
                                 <div>
-                                    <p class="text-[11px] font-bold truncate uppercase">{{ asset.is_double ? 'KOTAK' : getAssetType(asset) }} {{ asset.code }}</p>
+                                    <p class="text-[11px] font-bold truncate uppercase">{{ asset.is_double ? 'KOTAK' : '' }} {{ asset.code }}</p>
                                     <p class="text-[8px] opacity-90">{{ asset.room?.name || 'N/A' }}</p>
                                 </div>
                             </div>
 
-                            <div class="p-3 space-y-3">
+                            <div class="p-3 space-t-3">
                                 <div v-for="item in (asset.is_double ? asset.original_items : [asset])" :key="item.id" 
                                      class="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
                                     
@@ -206,7 +252,7 @@ const formatDate = (dateString) => {
                                         
                                         <span class="text-gray-400">Tipe Aset:</span>
                                         <span class="text-gray-900 font-bold text-right truncate">
-                                            {{ item.type?.name || item.apar_type?.name || item.p3k_type?.name || item.hydrant_type?.name || '-' }}
+                                            {{ item.type?.name }}
                                         </span>
 
                                         <template v-if="getAssetType(asset) === 'apar'">
@@ -226,12 +272,19 @@ const formatDate = (dateString) => {
                                         <strong class="block mb-0.5 uppercase text-[8px] tracking-wider">Detail Kerusakan:</strong>
                                         {{ item.last_finding || item.critical_details || 'Hubungi petugas untuk detail lebih lanjut.' }}
                                     </div>
+
+                                    <div class="pt-4">
+                                        <button @click.stop="openDetail(item)" 
+                                            class="block w-full text-center py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[9px] font-bold transition">
+                                            DETAIL FISIK
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div class="pt-1">
+                                <div class="">
                                     <Link :href="route('reports.index', { tab: getAssetType(asset), asset_code: asset.code })" 
                                           class="block w-full text-center py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[9px] font-bold transition">
-                                        LIHAT RIWAYAT DETAIL
+                                        RIWAYAT INSPEKSI
                                     </Link>
                                 </div>
                             </div>
@@ -251,6 +304,77 @@ const formatDate = (dateString) => {
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div v-if="isSlideoverOpen" 
+         @click="closeDetail"
+         class="fixed inset-0 bg-black/30 z-[1000] transition-opacity cursor-pointer">
+    </div>
+
+    <div :class="[
+            'fixed top-0 right-0 h-screen w-72 sm:w-80 bg-slate-50 shadow-2xl z-[1001] transform transition-transform duration-300 ease-in-out flex flex-col',
+            isSlideoverOpen ? 'translate-x-0' : 'translate-x-full'
+         ]">
+         
+        <div class="bg-white p-4 border-b border-slate-200 shrink-0 shadow-sm z-10">
+            <button @click="closeDetail" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+
+            <h3 class="font-bold text-slate-800 text-sm pr-6">{{ detailAsset?.code || 'Memuat...' }}</h3>
+            <p class="text-[10px] text-slate-500 flex items-center gap-1 mt-1 font-medium">
+                <svg class="w-3 h-3 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                {{ detailAsset?.room?.name || 'Lokasi tidak terdata' }}
+            </p>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 relative">
+            
+            <h4 class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                </svg>
+                Parameter Fisik
+            </h4>
+
+            <div class="space-y-1.5 relative min-h-[100px]">
+                
+                <div v-if="isLoadingDetail" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/80 z-10 rounded-lg">
+                    <div class="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p class="text-[10px] text-slate-500 mt-2 font-bold animate-pulse">Menyiapkan data...</p>
+                </div>
+
+                <template v-else-if="detailAsset?.checklist_results?.length > 0">
+                    <div v-for="(param, index) in detailAsset.checklist_results" :key="index" 
+                         class="flex justify-between items-center py-1.5 px-2.5 bg-white rounded-md border border-slate-200 shadow-sm hover:border-indigo-300 transition-all duration-200">
+                        
+                        <span class="text-[10px] text-slate-600 font-medium leading-tight pr-2">
+                            {{ param.question }}
+                        </span>
+                        
+                        <span :class="[
+                            'text-[9px] px-2 py-0.5 rounded font-bold text-center whitespace-nowrap min-w-[65px]',
+                            param.is_safe 
+                                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                                : 'bg-rose-100 text-rose-700 border border-rose-200'
+                        ]">
+                            {{ param.answer }}
+                        </span>
+                    </div>
+                </template>
+
+                <div v-else class="flex flex-col items-center justify-center py-5 px-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 bg-white shadow-sm">
+                    <svg class="w-5 h-5 mb-1 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
+                    </svg>
+                    <p class="text-[9px] font-medium">Belum ada data parameter.</p>
+                </div>
+            </div>
+
         </div>
     </div>
 </template>

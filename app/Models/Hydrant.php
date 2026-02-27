@@ -19,7 +19,7 @@ class Hydrant extends Model
         'location_data' => 'array',
     ];
 
-    public function hydrant_type(): BelongsTo
+    public function type(): BelongsTo
     {
         return $this->belongsTo(HydrantType::class, 'hydrant_type_id');
     }
@@ -27,5 +27,15 @@ class Hydrant extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function inspections()
+    {
+        return $this->morphMany(Inspection::class, 'assetable');
+    }
+
+    public function latest_inspection()
+    {
+        return $this->morphOne(Inspection::class, 'assetable')->latestOfMany();
     }
 }

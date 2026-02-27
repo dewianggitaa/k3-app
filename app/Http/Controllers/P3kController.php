@@ -12,7 +12,7 @@ use App\Models\Inspection;
 use App\Models\Department; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth; // Wajib untuk cek sesi login K3
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class P3kController extends Controller
@@ -20,11 +20,11 @@ class P3kController extends Controller
 
     public function index(Request $request)
     {
-        $query = P3k::query()->with(['p3k_type', 'room.floor.building']);
+        $query = P3k::query()->with(['type', 'room.floor.building']);
 
         if ($request->search) {
             $query->where('code', 'like', "%{$request->search}%")
-                  ->orWhereHas('p3k_type', function($q) use ($request) {
+                  ->orWhereHas('type', function($q) use ($request) {
                       $q->where('name', 'like', "%{$request->search}%");
                   });
         }
@@ -76,7 +76,7 @@ class P3kController extends Controller
 
     public function menu(Request $request, $id)
     {
-        $p3k = P3k::with(['p3k_type', 'room.floor.building'])->findOrFail($id);
+        $p3k = P3k::with(['type', 'room.floor.building'])->findOrFail($id);
         
         $inspection = null;
         if ($request->inspection_id) {
@@ -136,7 +136,6 @@ class P3kController extends Controller
 
     public function storeUsage(Request $request, $id)
     {
-        // 1. Validasi Dinamis
         $rules = [
             'type' => 'required|in:out,in', 
             'items' => 'required|array|min:1',
@@ -145,7 +144,6 @@ class P3kController extends Controller
             'notes' => 'nullable|string',
         ];
 
-        // Jika mode pemakaian (out), wajib isi nama & departemen manual
         if ($request->type === 'out') {
             $rules['reporter_name'] = 'required|string|max:100';
             $rules['department_id'] = 'required|exists:departments,id';
@@ -153,7 +151,6 @@ class P3kController extends Controller
 
         $request->validate($rules);
 
-        // 2. Proteksi Akses Penambahan (in)
         if ($request->type === 'in') {
             $isK3 = Auth::check() && optional(Auth::user()->department)->name === 'K3';
             if (!$isK3) {
@@ -165,21 +162,18 @@ class P3kController extends Controller
             DB::beginTransaction();
             $p3k = P3k::findOrFail($id);
 
-            // 3. Tentukan Data Pelapor
             if ($request->type === 'in') {
                 // Ambil otomatis dari Auth
                 $reporterName = Auth::user()->name;
                 $deptId = Auth::user()->department_id;
                 $userId = Auth::id();
             } else {
-                // Ambil dari inputan Form
                 $reporterName = $request->reporter_name;
                 $deptId = $request->department_id;
-                $userId = Auth::id(); // Boleh null kalau Guest
+                $userId = Auth::id();
             }
 
             foreach ($request->items as $item) {
-                // A. UPDATE STOK
                 $inventory = P3kInventory::firstOrNew([
                     'p3k_id' => $id,
                     'p3k_item_id' => $item['id']
@@ -197,7 +191,6 @@ class P3kController extends Controller
                 $inventory->current_qty = $newQty;
                 $inventory->save();
 
-                // B. SIMPAN HISTORY
                 DB::table('p3k_usages')->insert([
                     'p3k_id' => $id,
                     'p3k_item_id' => $item['id'],

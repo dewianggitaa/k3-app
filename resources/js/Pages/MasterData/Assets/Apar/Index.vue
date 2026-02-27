@@ -107,6 +107,7 @@ const columns = [
     { label: 'No', key: 'no', class: 'w-12 text-center' },
     { label: 'Kode APAR', key: 'code', class: 'font-bold' },
     { label: 'Jenis', key: 'type' },
+    { label: 'Berat', key: 'weight', class: 'text-center' },
     { label: 'Lokasi', key: 'location' },
     { label: 'Status', key: 'status' },
     { label: 'Masa Berlaku', key: 'expired', class: 'w-32' },
@@ -178,7 +179,13 @@ const columns = [
 
                 <template #cell-type="{ item }">
                     <span class="px-2 py-1 rounded-md bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
-                        {{ item.apar_type?.name }}
+                        {{ item.type?.name }}
+                    </span>
+                </template>
+
+                <template #cell-weight="{ item }">
+                    <span class="px-2 py-1 rounded-md bg-orange-50 text-orange-700 text-[10px] font-bold border border-orange-100">
+                        {{ item.weight }} kg
                     </span>
                 </template>
 
@@ -264,7 +271,7 @@ const columns = [
                         </div>
                         <div>
                             <InputLabel value="Berat (kg)" />
-                            <TextInput v-model="form.weight" type="number" class="w-full" />
+                            <TextInput v-model="form.weight" type="number" step="0.1" class="w-full" />
                             <InputError :message="form.errors.weight" />
                         </div>
                     </div>

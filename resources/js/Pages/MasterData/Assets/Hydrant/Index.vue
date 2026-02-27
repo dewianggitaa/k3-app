@@ -178,7 +178,7 @@ const columns = [
 
                 <template #cell-type="{ item }">
                     <span class="px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100">
-                        {{ item.hydrant_type?.name }}
+                        {{ item.type?.name }}
                     </span>
                 </template>
 
