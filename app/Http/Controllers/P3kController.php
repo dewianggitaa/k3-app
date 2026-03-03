@@ -81,6 +81,13 @@ class P3kController extends Controller
         $inspection = null;
         if ($request->inspection_id) {
             $inspection = Inspection::find($request->inspection_id);
+        } else {
+            // Otomatis cari inspeksi yang masih pending/overdue untuk aset ini
+            $inspection = Inspection::where('assetable_type', P3k::class)
+                ->where('assetable_id', $p3k->id)
+                ->whereNotIn('status', ['completed'])
+                ->orderBy('schedule_date', 'asc') // Prioritaskan jadwal terdekat/lewat
+                ->first();
         }
 
         return Inertia::render('P3k/Menu', [

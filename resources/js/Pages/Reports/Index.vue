@@ -186,76 +186,125 @@ const currentAssets = computed(() => props.assetsList[props.activeTab] || []);
                     </DataTable>
                 </div>
 
-                <div v-else class="overflow-x-auto w-full">
-                    <table class="w-full text-sm text-left text-gray-500">
-                        <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b">
+                <div v-else-if="activeTab === 'apar'" class="overflow-x-auto w-full">
+                    <table class="w-full text-xs text-left text-gray-500 leading-tight border-collapse">
+                        <thead class="text-[11px] text-gray-700 uppercase bg-gray-100 border-b">
                             <tr>
-                                <th class="px-4 py-3">No</th>
-                                <th v-if="filterForm.asset_code === 'all'" class="px-4 py-3">Kode Aset</th>
-                                <th class="px-4 py-3">Data Pelapor (PIC)</th>
-                                <th class="px-4 py-3">Hasil Inspeksi</th>
-                                <th class="px-4 py-3 bg-indigo-50 border-l border-indigo-100">Validasi K3</th>
-                                <th class="px-4 py-3 bg-indigo-50">Tindakan & Catatan</th>
-                                <th class="px-4 py-3 bg-indigo-50">Kondisi Akhir</th>
+                                <th class="px-2.5 py-2">No</th>
+                                <th v-if="filterForm.asset_code === 'all'" class="px-2.5 py-2">Kode Aset</th>
+                                <th class="px-2.5 py-2">Periode Pemeriksaan</th>
+                                <th class="px-2.5 py-2">Pelapor PIC</th>
+                                <th class="px-2.5 py-2">Hasil Inspeksi</th>
+                                <th class="px-2.5 py-2 bg-indigo-50 border-l border-indigo-100">Validasi K3</th>
+                                <th class="px-2.5 py-2 bg-indigo-50">Tindakan</th>
+                                <th class="px-2.5 py-2 bg-indigo-50">Catatan</th>
+                                <th class="px-2.5 py-2 bg-indigo-50">Kondisi Akhir</th>
                             </tr>
                         </thead>
                         <tbody v-for="(k3Report, index) in reports.data" :key="k3Report.id" class="border-b last:border-0 hover:bg-gray-50 transition-colors">
                             <tr v-for="(picReport, picIndex) in k3Report.pic_reports" :key="picReport.id">
-                                
-                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 font-medium text-gray-900 text-center border-r align-top">
-                                    {{ index + 1 }}
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-2.5 py-2 font-medium text-gray-900 text-center border-r align-top">{{ index + 1 }}</td>
+                                <td v-if="filterForm.asset_code === 'all' && picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-2.5 py-2 font-bold border-r align-top">{{ k3Report.asset_code }}</td>
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-2.5 py-2 border-r align-middle">
+                                    <span class="inline-flex items-center gap-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
+                                        📅 {{ k3Report.periode_pemeriksaan }}
+                                    </span>
                                 </td>
-                                
-                                <td v-if="filterForm.asset_code === 'all' && picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 font-bold border-r align-top">
-                                    {{ k3Report.asset_code }}
-                                </td>
-
-                                <td class="px-4 py-3 border-r align-top">
+                                <td class="px-2.5 py-2 border-r align-top">
                                     <div class="font-semibold text-gray-800">{{ picReport.actor }}</div>
-                                    <div class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                    <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
                                         <Calendar class="w-3 h-3"/> {{ formatDate(picReport.record_date) }}
                                     </div>
                                 </td>
-
-                                <td class="px-4 py-3 border-r align-top">
-                                    <span :class="{'text-red-600': picReport.status === 'KRITIS', 'text-green-600': picReport.status === 'SAFE', 'text-gray-400': picReport.status === '-'}" class="font-bold block">
-                                        {{ picReport.status }}
-                                    </span>
-                                    
-                                    <div v-if="picReport.status === 'KRITIS'" class="mt-2 p-2.5 bg-red-50 border-l-2 border-red-500 rounded-r shadow-sm">
-                                        <span class="text-[10px] font-bold text-red-800 uppercase tracking-wider block mb-1">Temuan Kerusakan:</span>
-                                        <span class="text-xs text-red-700 block whitespace-pre-line leading-snug">
-                                            {{ picReport.details ? picReport.details.replace('Kondisi: KRITIS\nRincian: ', '') : '' }}
-                                        </span>
+                                <td class="px-2.5 py-2 border-r align-top">
+                                    <span :class="{'text-red-600': picReport.status === 'KRITIS', 'text-green-600': picReport.status === 'SAFE', 'text-gray-400': picReport.status === '-'}" class="font-bold block text-[11px]">{{ picReport.status }}</span>
+                                    <div v-if="picReport.status === 'KRITIS'" class="mt-1.5 p-1.5 bg-red-50 border-l-2 border-red-500 rounded-r shadow-sm">
+                                        <span class="text-[9px] font-bold text-red-800 uppercase tracking-wider block mb-0.5">Temuan Kerusakan:</span>
+                                        <span class="text-[10px] text-red-700 block whitespace-pre-line leading-tight">{{ picReport.details ? picReport.details.replace('Kondisi: KRITIS\nRincian: ', '') : '' }}</span>
                                     </div>
-                                    
-                                    <div v-else-if="picReport.status === 'SAFE'" class="mt-2 text-xs text-green-700 font-medium italic">
-                                        ✓ Seluruh komponen standar normal.
-                                    </div>
-
-                                    <div v-else class="mt-2 text-xs text-gray-400 font-medium italic">
-                                        Belum ada laporan dari PIC.
-                                    </div>
+                                    <div v-else-if="picReport.status === 'SAFE'" class="mt-1.5 text-[10px] text-green-700 font-medium italic">✓ Seluruh komponen standar normal.</div>
+                                    <div v-else class="mt-1.5 text-[10px] text-gray-400 font-medium italic">Belum ada laporan dari PIC.</div>
                                 </td>
-
-                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 bg-indigo-50/30 border-r align-top">
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-2.5 py-2 bg-indigo-50/30 border-r align-top">
                                     <div class="font-bold text-indigo-900">{{ k3Report.actor_k3 }}</div>
-                                    
-                                    <div v-if="k3Report.record_date_k3" class="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                    <div v-if="k3Report.record_date_k3" class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
                                         <Calendar class="w-3 h-3"/> {{ formatDate(k3Report.record_date_k3) }}
                                     </div>
                                 </td>
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-2.5 py-2 bg-indigo-50/30 border-r align-middle text-center">
+                                    <span :class="k3Report.status_penggantian === 'Diganti' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-gray-100 text-gray-500 border-gray-200'" class="px-2 py-0.5 rounded-full text-[10px] font-bold border">{{ k3Report.status_penggantian }}</span>
+                                </td>
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-2.5 py-2 bg-indigo-50/30 border-r align-top text-gray-700 max-w-[150px] break-words">{{ k3Report.tindakan }}</td>
+                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-2.5 py-2 bg-indigo-50/30 align-middle text-center">
+                                    <span :class="k3Report.kondisi_akhir === 'SAFE' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border inline-block">{{ k3Report.kondisi_akhir }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 bg-indigo-50/30 border-r align-top text-gray-700">
-                                    {{ k3Report.tindakan }}
+                <div v-else-if="activeTab === 'hydrant'" class="overflow-x-auto w-full">
+                    <table class="w-full text-xs text-left text-gray-500 leading-tight border-collapse">
+                        <thead class="text-[11px] text-gray-700 uppercase bg-gray-100 border-b">
+                            <tr>
+                                <th class="px-2.5 py-2 w-12 text-center">No</th>
+                                <th v-if="filterForm.asset_code === 'all'" class="px-2.5 py-2">Kode Aset</th>
+                                <th class="px-2.5 py-2">Periode Pemeriksaan</th>
+                                <th class="px-2.5 py-2">Pelapor</th>
+                                <th class="px-2.5 py-2">Hasil Inspeksi</th>
+                                <th class="px-2.5 py-2 bg-teal-50 border-l border-teal-100">Catatan</th>
+                                <th class="px-2.5 py-2 bg-teal-50 text-center">Kondisi Akhir</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(report, index) in reports.data" :key="report.id" class="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                                <td class="px-2.5 py-2 font-medium text-gray-900 text-center align-top">
+                                    {{ (reports.current_page - 1) * reports.per_page + index + 1 }}
+                                </td>
+                                
+                                <td v-if="filterForm.asset_code === 'all'" class="px-2.5 py-2 font-bold align-top">
+                                    {{ report.asset_code }}
                                 </td>
 
-                                <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length" class="px-4 py-3 bg-indigo-50/30 align-middle text-center">
-                                    <span :class="k3Report.kondisi_akhir === 'safe' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border">
-                                        {{ k3Report.kondisi_akhir }}
+                                <td class="px-2.5 py-2 align-middle">
+                                    <span class="inline-flex items-center gap-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
+                                        📅 {{ report.periode_pemeriksaan }}
                                     </span>
                                 </td>
 
+                                <td class="px-2.5 py-2 align-top">
+                                    <div class="font-semibold text-gray-800">{{ report.actor }}</div>
+                                    <div class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                        <Calendar class="w-3 h-3"/> {{ formatDate(report.record_date) }}
+                                    </div>
+                                </td>
+
+                                <td class="px-2.5 py-2 align-top">
+                                    <span :class="{'text-red-600': report.status === 'KRITIS', 'text-green-600': report.status === 'SAFE'}" class="font-bold block text-[11px]">
+                                        {{ report.status }}
+                                    </span>
+                                    
+                                    <div v-if="report.status === 'KRITIS'" class="mt-1.5 p-1.5 bg-red-50 border-l-2 border-red-500 rounded-r shadow-sm">
+                                        <span class="text-[9px] font-bold text-red-800 uppercase tracking-wider block mb-0.5">Temuan Kerusakan:</span>
+                                        <span class="text-[10px] text-red-700 block whitespace-pre-line leading-tight">
+                                            {{ report.details ? report.details.replace('Kondisi: KRITIS\nRincian: ', '') : '' }}
+                                        </span>
+                                    </div>
+                                    
+                                    <div v-else-if="report.status === 'SAFE'" class="mt-1.5 text-[10px] text-green-700 font-medium italic">
+                                        ✓ Seluruh komponen standar normal.
+                                    </div>
+                                </td>
+
+                                <td class="px-2.5 py-2 bg-teal-50/30 align-top text-gray-700 max-w-[150px] break-words">
+                                    {{ report.notes || '-' }}
+                                </td>
+
+                                <td class="px-2.5 py-2 bg-teal-50/30 align-middle text-center">
+                                    <span :class="report.kondisi_akhir === 'SAFE' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide border inline-block">
+                                        {{ report.kondisi_akhir }}
+                                    </span>
+                                </td>
                             </tr>
                         </tbody>
                     </table>

@@ -84,12 +84,14 @@ class ReportController extends Controller
             
             $allInspections = Inspection::with(['user.department', 'assetable'])
                 ->where('assetable_type', $modelClass)
-                ->whereNotIn('status', ['pending', 'overdue'])
-                ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+                ->where('status', 'completed')
+                ->whereBetween('completed_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                 ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [$modelClass], fn($q2) => $q2->where('code', $assetCode)))
                 ->get();
 
-            $groupedData = $this->groupAndFormatK3Reports($allInspections, $checklistParams, $itemNames);
+            $groupedData = $tab === 'apar'
+                ? $this->groupAndFormatK3Reports($allInspections, $checklistParams, $itemNames)
+                : $this->formatHydrantReports($allInspections, $checklistParams, $itemNames);
 
             $page = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
             $perPage = 10;
@@ -178,12 +180,14 @@ class ReportController extends Controller
             
             $allInspections = Inspection::with(['user.department', 'assetable'])
                 ->where('assetable_type', $modelClass)
-                ->whereNotIn('status', ['pending', 'overdue'])
-                ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+                ->where('status', 'completed')
+                ->whereBetween('completed_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
                 ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [$modelClass], fn($q2) => $q2->where('code', $assetCode)))
                 ->get();
 
-            $data = $this->groupAndFormatK3Reports($allInspections, $checklistParams, $itemNames);
+            $data = $tab === 'apar'
+                ? $this->groupAndFormatK3Reports($allInspections, $checklistParams, $itemNames)
+                : $this->formatHydrantReports($allInspections, $checklistParams, $itemNames);
         }
 
         $pdf = Pdf::loadView($pdfView, [
@@ -196,64 +200,160 @@ class ReportController extends Controller
         return $pdf->stream('Laporan_K3_' . strtoupper($tab) . '.pdf');
     }
 
+    /**
+     * Menghitung key periode bi-monthly dari sebuah tanggal.
+     * Periode 1 = Jan-Feb, Periode 2 = Mar-Apr, dst.
+     */
+    private function getBimonthlyPeriodKey(string $year, int $month): string
+    {
+        $periodNum = (int) ceil($month / 2);
+        return $year . '-P' . $periodNum;
+    }
+
     private function groupAndFormatK3Reports($inspections, $checklistParams, $itemNames)
     {
-        $groupedByAsset = $inspections->groupBy('assetable_id');
+        // Kelompokkan per aset + per periode bi-monthly (dari schedule_date)
+        // Sehingga 1 baris riwayat = 1 siklus inspeksi (PIC bulanan + validasi K3 per 2 bulan)
+        $grouped = $inspections->groupBy(function ($inspection) {
+            $scheduleDate = $inspection->schedule_date
+                ? Carbon::parse($inspection->schedule_date)
+                : Carbon::parse($inspection->completed_at);
 
-        return $groupedByAsset->map(function($assetInspections) use ($checklistParams, $itemNames) {
-            $asset = $assetInspections->first()->assetable;
-            
-            $picReports = $assetInspections->filter(fn($i) => optional($i->user->department)->name !== 'K3')
-                ->sortBy('updated_at')->take(2)
-                ->map(function($pic) use ($checklistParams, $itemNames) {
+            $periodKey = $this->getBimonthlyPeriodKey(
+                $scheduleDate->format('Y'),
+                $scheduleDate->month
+            );
+
+            return $inspection->assetable_id . '|' . $periodKey;
+        });
+
+        $monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+        return $grouped->map(function ($periodInspections) use ($checklistParams, $itemNames, $monthNames) {
+            $asset = $periodInspections->first()->assetable;
+
+            // Hitung label periode dari schedule_date inspeksi pertama
+            $firstDate = $periodInspections->first()->schedule_date
+                ? Carbon::parse($periodInspections->first()->schedule_date)
+                : Carbon::parse($periodInspections->first()->completed_at);
+
+            $year = $firstDate->year;
+            $startMonth = ($firstDate->month % 2 === 0) ? $firstDate->month - 1 : $firstDate->month;
+            $endMonth   = $startMonth + 1;
+            $periodLabel = $monthNames[$startMonth - 1] . ' – ' . $monthNames[$endMonth - 1] . ' ' . $year;
+
+            // Inspeksi PIC: semua inspeksi oleh non-K3 dalam periode ini
+            $picReports = $periodInspections
+                ->filter(fn($i) => optional(optional($i->user)->department)->name !== 'K3')
+                ->sortBy('completed_at')
+                ->map(function ($pic) use ($checklistParams, $itemNames) {
                     $detailString = $this->buildDetail($pic, $checklistParams, $itemNames);
+                    $reportData   = $pic->report_data ?? [];
 
-                    $reportData = is_string($pic->report_data) ? json_decode($pic->report_data, true) : $pic->report_data;
+                    // Gunakan condition_result yang disimpan saat inspeksi, bukan status aset live
+                    $conditionResult = $reportData['condition_result'] ?? null;
+                    $status = $conditionResult === 'critical' ? 'KRITIS' : (
+                        str_contains($detailString, 'KRITIS') ? 'KRITIS' : 'SAFE'
+                    );
 
                     return [
-                        'id' => $pic->id,
-                        'actor' => $pic->user->name,
-                        'record_date' => $pic->updated_at,
-                        'status' => str_contains($detailString, 'KRITIS') ? 'KRITIS' : 'SAFE', 
-                        'details' => $detailString,
-                        'notes' => $reportData['notes'] ?? null
+                        'id'          => $pic->id,
+                        'actor'       => optional($pic->user)->name ?? '-',
+                        'record_date' => $pic->completed_at,
+                        'status'      => $status,
+                        'details'     => $detailString,
+                        'notes'       => $reportData['notes'] ?? null,
                     ];
                 })->values();
 
-            $k3Report = $assetInspections->filter(fn($i) => optional($i->user->department)->name === 'K3')
-                ->sortByDesc('updated_at')->first();
+            // Validasi K3: ambil yang terbaru dalam periode ini
+            $k3Report = $periodInspections
+                ->filter(fn($i) => optional(optional($i->user)->department)->name === 'K3')
+                ->sortByDesc('completed_at')
+                ->first();
 
-            $reportDataK3 = $k3Report ? (is_string($k3Report->report_data) ? json_decode($k3Report->report_data, true) : $k3Report->report_data) : [];
+            $reportDataK3 = $k3Report ? ($k3Report->report_data ?? []) : [];
 
-            $statusPenggantian = 'Tidak Diganti';
+            // Status penggantian tabung: ada parameter 'date' yang diisi K3?
+            $statusPenggantian = '-';
             if (isset($reportDataK3['answers']) && is_array($reportDataK3['answers'])) {
                 foreach ($reportDataK3['answers'] as $paramId => $ans) {
                     $val = is_array($ans) ? ($ans['response'] ?? null) : $ans;
-                    
                     if (isset($checklistParams[$paramId]) && $checklistParams[$paramId]->input_type === 'date' && !empty($val)) {
-                        $statusPenggantian = 'Diganti<br><span style="font-size: 8px; color: #6b7280;">(Exp: ' . \Carbon\Carbon::parse($val)->format('d M Y') . ')</span>';
+                        $statusPenggantian = 'Diganti';
                         break;
                     }
                 }
             }
 
+            // kondisi_akhir: dari condition_result yang tersimpan di inspeksi K3,
+            // fallback ke PIC jika K3 belum ada — BUKAN dari status aset live
+            $kondisiAkhir = 'SAFE';
+            if ($k3Report) {
+                $k3Condition  = $reportDataK3['condition_result'] ?? null;
+                $kondisiAkhir = $k3Condition === 'critical' ? 'KRITIS' : 'SAFE';
+            } elseif ($picReports->isNotEmpty()) {
+                $kondisiAkhir = $picReports->contains('status', 'KRITIS') ? 'KRITIS' : 'SAFE';
+            }
+
             if ($picReports->isEmpty()) {
-                 $picReports->push([
-                     'id' => 'dummy_' . uniqid(), 'actor' => '-', 'record_date' => null, 'status' => '-', 'details' => ''
-                 ]);
+                $picReports->push([
+                    'id'          => 'dummy_' . uniqid(),
+                    'actor'       => '-',
+                    'record_date' => null,
+                    'status'      => '-',
+                    'details'     => '',
+                    'notes'       => null,
+                ]);
             }
 
             return [
-                'id' => $k3Report->id ?? 'asset_' . $asset->id,
-                'asset_code' => $asset->code ?? '-',
-                'actor_k3' => $k3Report->user->name ?? 'Belum Divalidasi K3',
-                'record_date_k3' => $k3Report->updated_at ?? null,
-                'tindakan' => $reportDataK3['notes'] ?? $reportDataK3['admin_notes'] ?? $k3Report->notes ?? '-',
-                'kondisi_akhir' => strtoupper($asset->status ?? 'SAFE'),
-                'pic_reports' => $picReports->toArray(),
+                'id'                 => $k3Report->id ?? 'period_' . $periodInspections->first()->assetable_id . '_' . uniqid(),
+                'asset_code'         => $asset->code ?? '-',
+                'periode_pemeriksaan'=> $periodLabel,
+                'actor_k3'           => optional($k3Report)->user->name ?? 'Belum Divalidasi K3',
+                'record_date_k3'     => $k3Report ? $k3Report->completed_at : null,
+                'tindakan'           => $reportDataK3['notes'] ?? $reportDataK3['admin_notes'] ?? '-',
+                'kondisi_akhir'      => $kondisiAkhir,
+                'pic_reports'        => $picReports->toArray(),
                 'status_penggantian' => $statusPenggantian,
             ];
         })->values()->sortByDesc('record_date_k3');
+    }
+
+    private function formatHydrantReports($inspections, $checklistParams, $itemNames)
+    {
+        $monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+        return $inspections->sortByDesc('completed_at')->map(function ($inspection) use ($checklistParams, $itemNames, $monthNames) {
+            $asset = $inspection->assetable;
+
+            $scheduleDate = $inspection->schedule_date
+                ? Carbon::parse($inspection->schedule_date)
+                : Carbon::parse($inspection->completed_at);
+
+            $periodLabel = $monthNames[$scheduleDate->month - 1] . ' ' . $scheduleDate->year;
+
+            $detailString = $this->buildDetail($inspection, $checklistParams, $itemNames);
+            $reportData = $inspection->report_data ?? [];
+            $conditionResult = $reportData['condition_result'] ?? null;
+
+            $status = $conditionResult === 'critical' ? 'KRITIS' : (
+                str_contains($detailString, 'KRITIS') ? 'KRITIS' : 'SAFE'
+            );
+
+            return [
+                'id'                  => $inspection->id,
+                'asset_code'          => $asset->code ?? '-',
+                'periode_pemeriksaan' => $periodLabel,
+                'actor'               => optional($inspection->user)->name ?? '-',
+                'record_date'         => $inspection->completed_at,
+                'status'              => $status,
+                'details'             => $detailString,
+                'notes'               => $reportData['notes'] ?? $reportData['admin_notes'] ?? null,
+                'kondisi_akhir'       => $status, 
+            ];
+        })->values();
     }
 
     private function buildDetail($inspection, $checklistParams, $itemNames)

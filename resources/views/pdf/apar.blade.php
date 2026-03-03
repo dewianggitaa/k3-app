@@ -6,10 +6,11 @@
             <tr>
                 <th width="5%">No</th>
                 @if($selectedAsset === 'all') <th width="12%">Tabung</th> @endif
+                <th width="15%">Periode Pemeriksaan</th>
                 <th width="15%">Data Pelapor (PIC)</th>
                 <th width="23%">Hasil Inspeksi APAR</th>
                 <th width="15%">Validasi K3</th>
-                <th width="20%">Tindakan & Catatan K3</th>
+                <th width="20%">Catatan K3</th>
                 <th width="12%">STATUS PENGGANTIAN</th>
                 <th width="10%">Kondisi</th>
             </tr>
@@ -33,6 +34,9 @@
                                 @if($selectedAsset === 'all') 
                                     <td rowspan="{{ $rowspan }}" style="vertical-align: middle;"><b>{{ $k3Report['asset_code'] }}</b></td> 
                                 @endif
+                                <td rowspan="{{ $rowspan }}" style="vertical-align: middle; font-weight: bold; background-color: #f8fafc; text-align: center;">
+                                    {{ $k3Report['periode_pemeriksaan'] }}
+                                </td>
                             @endif
 
                             <td>
@@ -108,14 +112,22 @@
                     <tr>
                         <td style="text-align: center;">{{ $index + 1 }}</td>
                         @if($selectedAsset === 'all') <td><b>{{ $k3Report['asset_code'] }}</b></td> @endif
+                        <td style="text-align: center; font-weight: bold; background-color: #f8fafc;">{{ $k3Report['periode_pemeriksaan'] }}</td>
                         <td colspan="2" style="text-align: center; color: #999; font-style: italic;">Tidak ada data laporan PIC pada periode ini</td>
                         <td style="background-color: #f8fafc;"><b>{{ $k3Report['actor_k3'] }}</b></td>
                         <td style="background-color: #f8fafc;">{{ $k3Report['tindakan'] }}</td>
-                        <td style="background-color: #f8fafc; text-align: center;">SAFE</td>
+                        <td style="background-color: #f8fafc;"></td>
+                        <td style="background-color: #f8fafc; text-align: center; font-weight: bold;">
+                            @if($k3Report['kondisi_akhir'] == 'SAFE') 
+                                <span class="text-black">SAFE</span>
+                            @else 
+                                <span class="text-danger">KRITIS</span> 
+                            @endif
+                        </td>
                     </tr>
                 @endif
             @empty
-                <tr><td colspan="{{ $selectedAsset === 'all' ? 7 : 6 }}" style="text-align: center; padding: 40px; color: #666;">Belum ada validasi K3 yang tercatat untuk periode dwibulanan ini.</td></tr>
+                <tr><td colspan="{{ $selectedAsset === 'all' ? 8 : 7 }}" style="text-align: center; padding: 40px; color: #666;">Belum ada validasi K3 yang tercatat untuk periode dwibulanan ini.</td></tr>
             @endforelse
         </tbody>
     </table>

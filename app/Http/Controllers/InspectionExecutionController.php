@@ -165,7 +165,29 @@ class InspectionExecutionController extends Controller
                 }
             }
 
-            $inspection->assetable->update(['status' => $calculatedStatus]);
+            $asset = $inspection->assetable;
+            $asset->status = $calculatedStatus;
+
+            if ($assetTypeShort === 'apar') {
+                $dateParameters = ChecklistParameter::where(function($query) use ($assetTypeClass, $assetTypeShort) {
+                        $query->where('asset_type', $assetTypeShort)
+                            ->orWhere('asset_type', $assetTypeClass);
+                    })
+                    ->where('input_type', 'date')
+                    ->get();
+
+                foreach ($dateParameters as $dateParam) {
+                    $dateAnswer = $request->answers[$dateParam->id]['response'] ?? null;
+                    
+                    if (!empty($dateAnswer)) {
+                        $asset->expired_at = $dateAnswer;
+                        $asset->last_refilled_at = now();
+                        break;
+                    }
+                }
+            }
+
+            $asset->save(); 
 
             $reportPayload = [
                 'answers'          => $request->answers,

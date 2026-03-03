@@ -159,10 +159,66 @@ onMounted(() => window.addEventListener('mouseup', stopDragging));
 onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
 
 const activeInfoId = ref(null);
+const infoPopupStyle = ref({});
+const infoArrowDir = ref('bottom'); // 'top' | 'bottom' | 'left' | 'right'
+const mapContainerRef = ref(null);
+const POPUP_W = 240; // w-60 = 240px
+const POPUP_H = 280; // estimated max height
+const OFFSET = 14;  // gap from icon
 
-const toggleInfo = (id) => {
-    activeInfoId.value = activeInfoId.value === id ? null : id;
+const toggleInfo = (id, event) => {
+    if (activeInfoId.value === id) {
+        activeInfoId.value = null;
+        infoPopupStyle.value = {};
+        return;
+    }
+    
+    activeInfoId.value = id;
+    
+    // Compute position on next tick (wait for the DOM icon element)
+    const iconEl = event?.currentTarget;
+    if (!iconEl || !mapContainerRef.value) return;
+    
+    const iconRect = iconEl.getBoundingClientRect();
+    const containerRect = mapContainerRef.value.getBoundingClientRect();
+    
+    // Available space in each direction INSIDE the map container
+    const spaceAbove = iconRect.top - containerRect.top;
+    const spaceBelow = containerRect.bottom - iconRect.bottom;
+    const spaceLeft  = iconRect.left - containerRect.left;
+    const spaceRight = containerRect.right - iconRect.right;
+    
+    // Pick direction with most room relative to the container
+    const max = Math.max(spaceAbove, spaceBelow, spaceLeft, spaceRight);
+    
+    let style = { position: 'fixed', zIndex: 999, width: POPUP_W + 'px' };
+    
+    if (max === spaceBelow) {
+        // Place below
+        style.top = (iconRect.bottom + OFFSET) + 'px';
+        style.left = clamp(iconRect.left + iconRect.width / 2 - POPUP_W / 2, containerRect.left + 8, containerRect.right - POPUP_W - 8) + 'px';
+        infoArrowDir.value = 'top';
+    } else if (max === spaceAbove) {
+        // Place above
+        style.top = (iconRect.top - POPUP_H - OFFSET) + 'px';
+        style.left = clamp(iconRect.left + iconRect.width / 2 - POPUP_W / 2, containerRect.left + 8, containerRect.right - POPUP_W - 8) + 'px';
+        infoArrowDir.value = 'bottom';
+    } else if (max === spaceRight) {
+        // Place right
+        style.left = (iconRect.right + OFFSET) + 'px';
+        style.top = clamp(iconRect.top + iconRect.height / 2 - POPUP_H / 2, containerRect.top + 8, containerRect.bottom - POPUP_H - 8) + 'px';
+        infoArrowDir.value = 'left';
+    } else {
+        // Place left
+        style.left = (iconRect.left - POPUP_W - OFFSET) + 'px';
+        style.top = clamp(iconRect.top + iconRect.height / 2 - POPUP_H / 2, containerRect.top + 8, containerRect.bottom - POPUP_H - 8) + 'px';
+        infoArrowDir.value = 'right';
+    }
+    
+    infoPopupStyle.value = style;
 };
+
+const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
 
 const getAssetType = (asset) => {
     if (!asset || !asset.code) return 'apar';
@@ -181,6 +237,7 @@ const formatDate = (dateString) => {
 
 <template>
     <div class="relative w-full h-full overflow-hidden bg-slate-200 rounded-xl flex items-center justify-center border border-slate-300 shadow-inner"
+        ref="mapContainerRef"
         @mousedown="handleMouseDown"
         @mousemove="handleMouseMove"
         @wheel="handleWheel">
@@ -218,13 +275,23 @@ const formatDate = (dateString) => {
                         }">
                         
                         <div v-if="activeInfoId === asset.id" 
-                            @click="activeInfoId = null"
+                            @click.stop="activeInfoId = null; infoPopupStyle.value = {}; infoArrowDir.value = 'bottom'"
                             class="fixed inset-0 z-[998] bg-transparent cursor-default">
                         </div>
 
-                        <div v-if="activeInfoId === asset.id" 
-                            class="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-[999] bg-white shadow-2xl border border-gray-200 rounded-xl w-60 pointer-events-auto overflow-hidden">
-                            
+                        <Teleport to="body">
+                            <div v-if="activeInfoId === asset.id" 
+                                :style="infoPopupStyle"
+                                class="bg-white shadow-2xl border border-gray-200 rounded-xl pointer-events-auto overflow-hidden">
+                                
+                                <!-- Arrow: bottom (popup is above the icon) -->
+                                <div v-if="infoArrowDir === 'bottom'" class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white drop-shadow-sm"></div>
+                                <!-- Arrow: top (popup is below the icon) -->
+                                <div v-if="infoArrowDir === 'top'" class="absolute bottom-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-b-white drop-shadow-sm"></div>
+                                <!-- Arrow: right (popup is to the left) -->
+                                <div v-if="infoArrowDir === 'right'" class="absolute top-1/2 left-full -translate-y-1/2 border-[6px] border-transparent border-l-white drop-shadow-sm"></div>
+                                <!-- Arrow: left (popup is to the right) -->
+                                <div v-if="infoArrowDir === 'left'" class="absolute top-1/2 right-full -translate-y-1/2 border-[6px] border-transparent border-r-white drop-shadow-sm"></div>
                             <div class="p-2 text-white flex justify-between items-center bg-primary">
                                 <div>
                                     <p class="text-[11px] font-bold truncate uppercase">{{ asset.is_double ? 'KOTAK' : '' }} {{ asset.code }}</p>
@@ -289,13 +356,13 @@ const formatDate = (dateString) => {
                                 </div>
                             </div>
 
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white"></div>
-                        </div>
+                            </div>
+                        </Teleport>
 
                         <div class="relative flex items-center justify-center">
                             <img 
                                 :src="asset.is_double ? '/icon-apar2.png' : iconPath" 
-                                @click.stop="toggleInfo(asset.id)"
+                             @click.stop="toggleInfo(asset.id, $event)"
                                 class="w-6 h-6 relative z-10 drop-shadow-md cursor-pointer transition-all duration-200" 
                                 :class="{'scale-[1.7] brightness-125 z-20': asset.id === selectedAsset?.id || activeInfoId === asset.id}" 
                             />
