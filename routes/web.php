@@ -17,6 +17,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AssetInspectionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\AuditTrailController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -84,6 +85,9 @@ Route::middleware('auth')->group(function () {
     Route::resource('users', UserController::class)->except(['show', 'create', 'edit']);
     Route::patch('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
     Route::resource('roles', RoleController::class)->except(['show', 'create', 'edit', 'index']);
+
+    // Audit Trail
+    Route::get('/audit-trail', [AuditTrailController::class, 'index'])->name('audit-trail.index');
 });
 
 require __DIR__.'/auth.php';

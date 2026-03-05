@@ -18,7 +18,6 @@ class GenerateInspections extends Command
         $timezone = 'Asia/Jakarta';
         $now = Carbon::now($timezone);
         $today = $now->copy()->startOfDay();
-
         $this->info("=== ROBOT INSPEKSI MULAI BEKERJA: " . $now->toDateTimeString() . " ===");
 
         // ==========================================
@@ -26,7 +25,6 @@ class GenerateInspections extends Command
         // ==========================================
         $this->info("1. Memeriksa tugas yang melewati deadline...");
 
-        // Logic: Ubah status jadi 'overdue' jika status masih 'pending' DAN due_date < hari ini
         $affectedRows = Inspection::where('status', 'pending')
             ->whereDate('due_date', '<', $today)
             ->update(['status' => 'overdue']);
@@ -37,7 +35,7 @@ class GenerateInspections extends Command
             $this->info("   -> Aman. Tidak ada tugas yang terlambat hari ini.");
         }
 
-        $this->newLine(); // Jarak baris biar rapi
+        $this->newLine();
 
         // ==========================================
         // TAHAP 2: GENERATE TUGAS BARU DARI JADWAL
@@ -57,19 +55,15 @@ class GenerateInspections extends Command
         foreach ($schedules as $schedule) {
             DB::beginTransaction();
             try {
-                // --- Validasi Model ---
                 $modelClass = $schedule->asset_type;
                 if (!class_exists($modelClass)) {
                     throw new \Exception("Model aset tidak ditemukan: $modelClass");
                 }
 
-                // --- Query Aset ---
                 $query = $modelClass::with('room');
 
-                // --- Filter Scope (Global / Building) ---
                 if ($schedule->scope === 'building') {
                     $buildingIds = $schedule->buildings->pluck('id')->toArray();
-                    
                     if (!empty($buildingIds)) {
                         $query->whereHas('room.floor', function($q) use ($buildingIds) {
                             $q->whereIn('building_id', $buildingIds);
@@ -80,10 +74,7 @@ class GenerateInspections extends Command
                 $assets = $query->get();
                 $countCreated = 0;
 
-                // --- Loop Setiap Aset ---
                 foreach ($assets as $asset) {
-                    
-                    // Cek Penugasan (PIC vs Tim K3)
                     $targetUserId = null;
                     if ($schedule->assign_type === 'pic') {
                         if ($asset->room && $asset->room->pic_user_id) {
@@ -91,17 +82,13 @@ class GenerateInspections extends Command
                         } 
                     }
 
-                    // Hitung Tanggal (Start & Due Date)
                     $baseMonth = Carbon::parse($schedule->next_run_date, $timezone)->startOfMonth();
-                    // Due date default akhir bulan interval
                     $endOfInterval = $baseMonth->copy()->addMonths($schedule->months_interval - 1)->endOfMonth();
 
                     if (is_null($schedule->week_rank)) {
-                        // Bebas / Awal Bulan
                         $startDate = $baseMonth->copy();
                         $dueDate   = $endOfInterval;
                     } else {
-                        // Minggu Tertentu
                         $dayMap = [
                             1 => [1, 7],
                             2 => [8, 14],
@@ -113,7 +100,6 @@ class GenerateInspections extends Command
                         $dueDate   = $baseMonth->copy()->day($range[1]);
                     }
 
-                    // Cek Duplikasi (Supaya tidak double)
                     $exists = Inspection::where('schedule_id', $schedule->id)
                         ->where('assetable_type', $schedule->asset_type)
                         ->where('assetable_id', $asset->id)
@@ -122,15 +108,28 @@ class GenerateInspections extends Command
                         ->exists();
 
                     if (!$exists) {
-                        Inspection::create([
+                        // Buat instansiasi baru, matikan log spesifik untuk objek ini, lalu simpan
+                        $inspection = new Inspection([
                             'schedule_id'    => $schedule->id,
                             'assetable_type' => $schedule->asset_type,
                             'assetable_id'   => $asset->id,
                             'status'         => 'pending',
                             'schedule_date'  => $startDate,
                             'due_date'       => $dueDate,
-                            'user_id'        => $targetUserId, 
+                            'user_id'        => $targetUserId,
                         ]);
+                        $inspection->disableLogging();
+                        $inspection->save();
+
+                        // Manual log sebagai Sistem (tanpa causer / anonymous)
+                        activity()
+                            ->causedByAnonymous()
+                            ->performedOn($inspection)
+                            ->useLog('jadwal-inspeksi')
+                            ->event('created')
+                            ->withProperties(['attributes' => $inspection->toArray()])
+                            ->log('Inspection created');
+
                         $countCreated++;
                     }
                 }
@@ -139,10 +138,33 @@ class GenerateInspections extends Command
                 $nextRun = Carbon::parse($schedule->next_run_date, $timezone)
                             ->addMonthsNoOverflow($schedule->months_interval);
 
+                // Simpan nilai lama sebelum update
+                $oldLastRun    = $schedule->last_run_at;
+                $oldNextRun    = $schedule->next_run_date;
+
+                $schedule->disableLogging();
                 $schedule->update([
                     'last_run_at'   => $now,
                     'next_run_date' => $nextRun
                 ]);
+
+                // Manual log — hanya catat field yang berubah (dirty)
+                activity()
+                    ->causedByAnonymous()
+                    ->performedOn($schedule)
+                    ->useLog('jadwal-inspeksi')
+                    ->event('updated')
+                    ->withProperties([
+                        'old'        => [
+                            'last_run_at'   => $oldLastRun,
+                            'next_run_date' => $oldNextRun,
+                        ],
+                        'attributes' => [
+                            'last_run_at'   => $now->toDateTimeString(),
+                            'next_run_date' => $nextRun->toDateString(),
+                        ],
+                    ])
+                    ->log('Schedule updated by system');
 
                 DB::commit();
                 $this->info("   -> Jadwal ID {$schedule->id}: Berhasil generate $countCreated tugas. Next: {$nextRun->toDateString()}");

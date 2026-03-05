@@ -206,6 +206,18 @@ class InspectionExecutionController extends Controller
 
             DB::commit();
 
+            activity()
+                ->causedBy(Auth::user())
+                ->performedOn($inspection)
+                ->withProperties([
+                    'asset_type'   => class_basename($inspection->assetable_type),
+                    'asset_code'   => optional($inspection->assetable)->code,
+                    'status_hasil' => strtoupper($calculatedStatus),
+                    'catatan'      => $request->notes,
+                ])
+                ->useLog('jadwal-inspeksi')
+                ->log('Inspeksi rutin selesai: ' . class_basename($inspection->assetable_type) . ' "' . optional($inspection->assetable)->code . '" — hasil: ' . strtoupper($calculatedStatus));
+
             $user = Auth::user();
             $isK3 = optional($user->department)->name === 'K3';
 

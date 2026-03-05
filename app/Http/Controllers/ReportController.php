@@ -202,6 +202,17 @@ class ReportController extends Controller
             'supervisor' => $supervisorName,
         ])->setPaper('a4', 'portrait');
 
+        activity()
+            ->causedBy(auth()->user())
+            ->withProperties([
+                'asset_type' => strtoupper($tab),
+                'start_date' => $startDate,
+                'end_date'   => $endDate,
+                'asset_code' => $assetCode !== 'all' ? $assetCode : 'Semua Aset',
+            ])
+            ->useLog('aktivitas-sistem')
+            ->log('Export/Print laporan PDF: ' . strtoupper($tab) . ' (' . $startDate . ' s/d ' . $endDate . ')');
+
         return $pdf->stream('Laporan_K3_' . strtoupper($tab) . '.pdf');
     }
 

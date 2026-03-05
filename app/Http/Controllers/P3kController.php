@@ -106,8 +106,7 @@ class P3kController extends Controller
 
     public function createUsage($id)
     {
-        abort_unless(Auth::user()->can('create-p3k-usage'), 403, 'Anda tidak memiliki izin untuk input pemakaian P3K.');
-
+        // Public access allowed without login for reporting (pemakaian)
         $p3k = P3k::findOrFail($id);
 
         $items = P3kTypeItem::join('p3k_items', 'p3k_type_items.p3k_item_id', '=', 'p3k_items.id')
@@ -159,7 +158,7 @@ class P3kController extends Controller
         ];
 
         if ($request->type === 'out') {
-            abort_unless(Auth::user()->can('create-p3k-usage'), 403, 'Anda tidak memiliki izin untuk input pemakaian P3K.');
+            // Public form, no permission check
             $rules['reporter_name'] = 'required|string|max:100';
             $rules['department_id'] = 'required|exists:departments,id';
         }
@@ -181,7 +180,7 @@ class P3kController extends Controller
             } else {
                 $reporterName = $request->reporter_name;
                 $deptId       = $request->department_id;
-                $userId       = Auth::id();
+                $userId       = Auth::id(); // Will be null for guest
             }
 
             foreach ($request->items as $item) {
@@ -205,11 +204,11 @@ class P3kController extends Controller
                 DB::table('p3k_usages')->insert([
                     'p3k_id'        => $id,
                     'p3k_item_id'   => $item['id'],
-                    'user_id'       => $userId,
-                    'reporter_name' => $reporterName,
-                    'department_id' => $deptId,
                     'type'          => $request->type,
                     'qty'           => $item['qty'],
+                    'user_id'       => $userId, // null for guest
+                    'reporter_name' => $reporterName,
+                    'department_id' => $deptId,
                     'notes'         => $request->notes,
                     'created_at'    => now(),
                     'updated_at'    => now(),

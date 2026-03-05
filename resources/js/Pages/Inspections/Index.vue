@@ -1,11 +1,11 @@
 <script setup>
 import { ref, watch } from 'vue';
-import { Head, router, Link } from '@inertiajs/vue3';
+import { Head, router, Link, useForm } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import { 
     CheckCircle, AlertCircle, Clock, FileText, 
     MapPin, User, Calendar, Search, 
-    Filter, RefreshCw, AlertTriangle
+    Filter, RefreshCw, AlertTriangle, Pencil, Trash2, X
 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -37,6 +37,7 @@ const columns = [
     { label: 'Aset & Lokasi', key: 'asset' },
     { label: 'Petugas (PIC)', key: 'user' },
     { label: 'Jadwal & Deadline', key: 'date' },
+    { label: 'Aksi', key: 'action', class: 'w-24 text-center' },
 ];
 
 // Helper Warna Badge Status
@@ -57,6 +58,29 @@ const getStatusLabel = (status) => {
         case 'overdue': return 'Terlambat';
         default: return 'Pending';
     }
+};
+
+// ─── Edit Modal ────────────────────────────────────────────────────────────
+const showEditModal = ref(false);
+const editForm = useForm({ id: null, status: '', notes: '' });
+
+const openEdit = (item) => {
+    editForm.id     = item.id;
+    editForm.status = item.status;
+    editForm.notes  = item.report_data?.admin_notes || '';
+    showEditModal.value = true;
+};
+
+const submitEdit = () => {
+    editForm.put(route('inspections.update', editForm.id), {
+        onSuccess: () => { showEditModal.value = false; },
+    });
+};
+
+// ─── Delete ────────────────────────────────────────────────────────────────
+const deleteInspection = (id) => {
+    if (!confirm('Hapus tugas inspeksi ini? Tindakan tidak dapat dibatalkan.')) return;
+    router.delete(route('inspections.destroy', id));
 };
 </script>
 
@@ -212,8 +236,75 @@ const getStatusLabel = (status) => {
                         </div>
                     </template>
 
+                    <template #cell-action="{ item }">
+                        <div class="flex items-center justify-center gap-1">
+                            <button
+                                @click.stop="openEdit(item)"
+                                class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                title="Edit Status"
+                            >
+                                <Pencil class="w-4 h-4" />
+                            </button>
+                            <button
+                                @click.stop="deleteInspection(item.id)"
+                                class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Hapus"
+                            >
+                                <Trash2 class="w-4 h-4" />
+                            </button>
+                        </div>
+                    </template>
+
                 </DataTable>
             </Card>
         </div>
+
+        <!-- ─── Edit Modal ─────────────────────────────────────────────── -->
+        <Teleport to="body">
+            <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" @click.self="showEditModal = false">
+                <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+
+                    <div class="flex items-center justify-between mb-5">
+                        <h3 class="text-base font-bold text-gray-900 dark:text-gray-100">Edit Status Inspeksi</h3>
+                        <button @click="showEditModal = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    <form @submit.prevent="submitEdit" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Status</label>
+                            <select v-model="editForm.status"
+                                class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm px-3 py-2 focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                            >
+                                <option value="pending">Pending</option>
+                                <option value="completed">Selesai</option>
+                                <option value="issue">Ada Masalah</option>
+                                <option value="overdue">Terlambat</option>
+                            </select>
+                            <p v-if="editForm.errors.status" class="text-xs text-red-500 mt-1">{{ editForm.errors.status }}</p>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">Catatan Admin (opsional)</label>
+                            <textarea v-model="editForm.notes" rows="3"
+                                placeholder="Tambahkan catatan admin..."
+                                class="w-full rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-sm px-3 py-2 focus:ring-2 focus:ring-indigo-400 focus:outline-none resize-none"
+                            />
+                        </div>
+
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button type="button" @click="showEditModal = false"
+                                class="px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            >Batal</button>
+                            <button type="submit" :disabled="editForm.processing"
+                                class="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-60"
+                            >Simpan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </Teleport>
+
     </MainLayout>
 </template>

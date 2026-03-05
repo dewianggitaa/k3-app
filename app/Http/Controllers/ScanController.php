@@ -9,6 +9,7 @@ use App\Models\P3k;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+
 class ScanController extends Controller
 {
     public function handleNfc($assetCode)
@@ -71,9 +72,26 @@ class ScanController extends Controller
             })->first();
 
         if ($inspection) {
+            activity()
+                ->causedBy(Auth::user())
+                ->withProperties([
+                    'asset_code' => $assetCode,
+                    'asset_type' => class_basename($assetType),
+                    'asset_id'   => $asset->id,
+                    'inspection_id' => $inspection->id,
+                ])
+                ->useLog('aktivitas-sistem')
+                ->log('Scan NFC: Aset ' . class_basename($assetType) . ' "' . $asset->code . '" ditemukan. Diarahkan ke form inspeksi.');
+
             return redirect()->route('inspections.execute', $inspection->id)
                 ->with('success', 'Aset cocok. Silakan isi laporan.');
         }
+
+        activity()
+            ->causedBy(Auth::user())
+            ->withProperties(['asset_code' => $assetCode, 'asset_type' => class_basename($assetType), 'asset_id' => $asset->id])
+            ->useLog('aktivitas-sistem')
+            ->log('Scan NFC: Aset ' . class_basename($assetType) . ' "' . $asset->code . '" tidak memiliki jadwal inspeksi aktif.');
 
         return redirect()->route('dashboard')->with('error', "Tidak ada jadwal tugas aktif untuk aset ini.");
     }

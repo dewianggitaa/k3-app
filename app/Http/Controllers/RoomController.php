@@ -89,7 +89,7 @@ class RoomController extends Controller
         $room = Room::find($id);
         if (!$room) return response()->json(['message' => 'Not found'], 404);
         $room->delete();
-        return response()->json(['message' => 'Room deleted']);
+        return redirect()->back()->with('message', 'Area ruangan berhasil dihapus!');
     }
 
     public function getByFloor($floorId)

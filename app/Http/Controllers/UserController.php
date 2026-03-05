@@ -18,23 +18,33 @@ class UserController extends Controller
     {
         abort_unless(Auth::user()->can('view-users'), 403, 'Anda tidak memiliki izin melihat daftar pengguna.');
 
-        $users = User::with(['department', 'position', 'roles'])
-            ->orderBy('name')
-            ->get()
-            ->map(function ($user) {
-                return [
-                    'id'            => $user->id,
-                    'name'          => $user->name,
-                    'username'      => $user->username,
-                    'department'    => $user->department?->name,
-                    'department_id' => $user->department_id,
-                    'position'      => $user->position?->name,
-                    'position_id'   => $user->position_id,
-                    'is_active'     => $user->is_active,
-                    'roles'         => $user->roles->pluck('name'),
-                    'created_at'    => $user->created_at->format('d M Y'),
-                ];
+        $query = User::with(['department', 'position', 'roles'])->orderBy('name');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('username', 'like', "%{$search}%")
+                  ->orWhereHas('department', function ($q2) use ($search) {
+                      $q2->where('name', 'like', "%{$search}%");
+                  });
             });
+        }
+
+        $users = $query->paginate(20)->through(function ($user) {
+            return [
+                'id'            => $user->id,
+                'name'          => $user->name,
+                'username'      => $user->username,
+                'department'    => $user->department?->name,
+                'department_id' => $user->department_id,
+                'position'      => $user->position?->name,
+                'position_id'   => $user->position_id,
+                'is_active'     => $user->is_active,
+                'roles'         => $user->roles->pluck('name'),
+                'created_at'    => $user->created_at->format('d M Y'),
+            ];
+        })->withQueryString();
 
         $roles               = Role::orderBy('name')->get(['id', 'name']);
         $departments         = Department::orderBy('name')->get(['id', 'name']);
@@ -47,6 +57,7 @@ class UserController extends Controller
             'departments'         => $departments,
             'positions'           => $positions,
             'rolesWithPermissions' => $rolesWithPermissions,
+            'filters'             => $request->only('search', 'tab'),
             'can'                 => [
                 'create_users'        => Auth::user()->can('create-users'),
                 'edit_users'          => Auth::user()->can('edit-users'),

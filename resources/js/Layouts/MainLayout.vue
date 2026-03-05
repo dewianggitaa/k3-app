@@ -17,6 +17,7 @@ import {
     UserCheck,
     FileBarChart,
     Users,
+    ClipboardList,
 } from 'lucide-vue-next';
 
 import ThemeToggle from '@/Components/ThemeToggle.vue'; 
@@ -104,6 +105,12 @@ const allMenuItems = [
         icon: Users,
         route: 'users.index',
         permission: 'view-users',
+    },
+    {
+        name: 'Audit Trail',
+        icon: ClipboardList,
+        route: 'audit-trail.index',
+        permission: 'manage-roles',
     },
     { 
         name: 'Logout', 

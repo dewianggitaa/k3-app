@@ -2,24 +2,35 @@
 import MainLayout from '@/Layouts/MainLayout.vue';
 import { ref, computed } from 'vue';
 import { PERMISSION_GROUPS, getLabel } from '@/Composable/permission';
-import { useForm, Head, router } from '@inertiajs/vue3';
-
+import { useForm, Head, router, Link } from '@inertiajs/vue3';
+import { debounce } from 'lodash';
+import { watch } from 'vue';
 const props = defineProps({
-    users: Array,
+    users: Object,
     roles: Array,
     departments: Array,
     positions: Array,
     rolesWithPermissions: Array,
+    filters: Object,
     can: Object,
 });
 
-const activeTab = ref('users');
+const activeTab = ref(props.filters?.tab || 'users');
 
 // ─── USER MANAGEMENT ──────────────────────────────────────────────────────────
 const showUserModal = ref(false);
 const isEditingUser = ref(false);
 const editingUser = ref(null);
-const searchQuery = ref('');
+const searchQuery = ref(props.filters?.search || '');
+
+const applyFilters = debounce(() => {
+    router.get(route('users.index'), {
+        search: searchQuery.value || undefined,
+        tab: activeTab.value,
+    }, { preserveState: true, replace: true });
+}, 350);
+
+watch([searchQuery, activeTab], () => applyFilters());
 
 const userForm = useForm({
     name: '',
@@ -29,16 +40,6 @@ const userForm = useForm({
     position_id: null,
     is_active: true,
     role: '',
-});
-
-const filteredUsers = computed(() => {
-    if (!searchQuery.value) return props.users;
-    const q = searchQuery.value.toLowerCase();
-    return props.users.filter(u =>
-        u.name.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q) ||
-        (u.department || '').toLowerCase().includes(q)
-    );
 });
 
 const openCreateUser = () => {
@@ -225,8 +226,8 @@ const isGroupAllSelected = (group) => {
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-ghost dark:divide-gray-700">
-                            <tr v-for="(user, i) in filteredUsers" :key="user.id" class="hover:bg-ghost/30 dark:hover:bg-gray-800/50 transition-colors">
-                                <td class="px-3 py-2 text-ink/40 dark:text-ink-dark/40">{{ i + 1 }}</td>
+                            <tr v-for="(user, i) in users.data" :key="user.id" class="hover:bg-ghost/30 dark:hover:bg-gray-800/50 transition-colors">
+                                <td class="px-3 py-2 text-ink/40 dark:text-ink-dark/40">{{ (users.current_page - 1) * users.per_page + i + 1 }}</td>
                                 <td class="px-3 py-2 font-medium text-ink dark:text-ink-dark">{{ user.name }}</td>
                                 <td class="px-3 py-2 text-ink/70 dark:text-ink-dark/70 font-mono">{{ user.username }}</td>
                                 <td class="px-3 py-2 text-ink/70 dark:text-ink-dark/70">{{ user.department || '-' }}</td>
@@ -260,11 +261,29 @@ const isGroupAllSelected = (group) => {
                                     </div>
                                 </td>
                             </tr>
-                            <tr v-if="!filteredUsers.length">
+                            <tr v-if="!users.data.length">
                                 <td colspan="8" class="px-3 py-8 text-center text-ink/40 dark:text-ink-dark/40">Tidak ada data user.</td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- PAGINATION -->
+            <div v-if="users.links && users.links.length > 3" class="mt-4 flex justify-center">
+                <div class="flex gap-1 bg-surface dark:bg-surface-dark p-2 rounded-xl shadow-sm border border-ghost dark:border-gray-700">
+                    <component
+                        :is="link.url ? Link : 'span'"
+                        v-for="(link, k) in users.links" :key="k"
+                        :href="link.url ?? '#'"
+                        v-html="link.label"
+                        class="px-3 py-1.5 text-xs font-semibold rounded-lg transition"
+                        :class="{
+                            'bg-primary dark:bg-primary-dark text-white shadow-sm': link.active,
+                            'text-ink/60 dark:text-ink-dark/60 hover:bg-ghost/50 dark:hover:bg-gray-700': !link.active && link.url,
+                            'opacity-30 cursor-default text-ink/40': !link.url
+                        }"
+                    />
                 </div>
             </div>
         </div>

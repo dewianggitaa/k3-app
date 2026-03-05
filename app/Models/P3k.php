@@ -3,9 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class P3k extends Model
 {
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['code', 'p3k_type_id', 'room_id', 'status', 'location_data'])
+            ->setDescriptionForEvent(fn(string $eventName) => "P3K {$eventName}")
+            ->useLogName('aset');
+    }
+
     protected $guarded = [];
 
     protected $casts = [
