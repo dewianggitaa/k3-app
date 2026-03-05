@@ -19,6 +19,7 @@ const props = defineProps({
     floors: Object,
     buildings: Array,
     filters: Object,
+    can: Object,
 });
 
 // --- TOAST CONFIG ---
@@ -134,10 +135,10 @@ const columns = [
     { label: 'No', key: 'no', class: 'w-12 text-center' },
     { label: 'Gedung', key: 'building_name', class: 'w-48' },
     { label: 'Nama Lantai', key: 'name', class: 'font-medium' },
-    { label: 'Gambar Denah', key: 'map_url', class: 'min-w-[150px]' },
+    { label: 'Denah Lantai', key: 'map_url', class: 'min-w-[150px]' },
     { label: 'Tinggi (px)', key: 'map_height', class: 'w-24 text-center' },
     { label: 'Lebar (px)', key: 'map_width', class: 'w-24 text-center' },
-    { label: '', key: 'action', class: 'w-24 text-right' },
+    ...(props.can?.manage ? [{ label: '', key: 'action', class: 'w-24 text-right' }] : []),
 ];
 </script>
 
@@ -161,6 +162,7 @@ const columns = [
                     </div>
 
                     <button 
+                        v-if="can?.manage"
                         @click="openCreate"
                         class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md shadow-sm flex items-center gap-2 transition-all"
                     >
@@ -200,21 +202,22 @@ const columns = [
                             target="_blank" 
                             class="text-[10px] bg-gray-100 dark:bg-gray-800 text-indigo-600 px-2 py-0.5 rounded border border-indigo-200 hover:bg-indigo-50 transition-all font-medium"
                         >
-                            Lihat Denah
+                            Gambar Denah
                         </a>
+
+                        <Link 
+                            :href="route('floors.mapping', item.id)" 
+                            class="ml-3 p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                            title="Mapping Ruangan"
+                        >
+                            <Map class="w-4 h-4" />
+                        </Link>
                     </div>
                     <span v-else class="text-[10px] text-gray-400 italic">No Image</span>
                 </template>
 
                 <template #cell-action="{ item }">
-                    <div class="flex justify-end items-center gap-1">
-                        <Link 
-                            :href="route('floors.mapping', item.id)" 
-                            class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                            title="Mapping Ruangan"
-                        >
-                            <Map class="w-4 h-4" />
-                        </Link>
+                    <div v-if="can?.manage" class="flex justify-end items-center gap-1">
                         <button @click="openEdit(item)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">
                             <Pencil class="w-4 h-4" />
                         </button>

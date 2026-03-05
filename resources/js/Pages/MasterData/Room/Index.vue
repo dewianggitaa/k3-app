@@ -24,6 +24,7 @@ const props = defineProps({
     filters: Object,
     floors: Array,
     users: Array,
+    can: Object,
 });
 
 const search = ref(props.filters.search || '');
@@ -43,12 +44,6 @@ const selectUser = (userId) => {
     form.pic_user_id = userId;
 };
 
-const colorPresets = [
-    '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', 
-    '#22c55e', '#10b981', '#14b8a6', '#06b6d4', '#0ea5e9', 
-    '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', 
-    '#ec4899', '#f43f5e', '#71717a', '#78350f', '#134e4a'
-];
 
 const form = useForm({
     id: null,
@@ -85,7 +80,7 @@ const openEditModal = (room) => {
     form.code = room.code;
     form.floor_id = room.floor_id; 
     form.name = room.name;
-    form.color = room.color || '#3b82f6';
+    form.color = '#3b82f6'; // Semua pakai default biru
     form.pic_user_id = room.pic_user_id;
     showModal.value = true;
 };
@@ -158,9 +153,8 @@ const columns = [
     { label: 'Kode Ruangan', key: 'code', class: 'font-medium'},
     { label: 'Nama Ruangan', key: 'name', class: 'font-medium' },
     { label: 'PIC Area', key: 'pic', class: 'font-medium' },
-    { label: 'Warna', key: 'color', class: 'w-24 text-center' },
     { label: 'Status Mapping', key: 'coordinates', class: 'w-48 text-center' },
-    { label: '', key: 'action', class: 'w-24 text-right' },
+    ...(props.can?.manage ? [{ label: '', key: 'action', class: 'w-24 text-right' }] : []),
 ];
 </script>
 
@@ -187,6 +181,7 @@ const columns = [
                     </div>
 
                     <button 
+                        v-if="can?.manage"
                         @click="openCreateModal"
                         class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md shadow-sm flex items-center gap-2 transition-all"
                     >
@@ -216,7 +211,7 @@ const columns = [
 
                 <template #cell-code="{ item }">
                     <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: item.color || '#ddd' }"></div>
+                        <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                         <span class="text-sm text-gray-700">{{ item.code }}</span>
                     </div>
                 </template>
@@ -233,16 +228,6 @@ const columns = [
                     </div>
                 </template>
 
-                <template #cell-color="{ item }">
-                    <div class="flex justify-center">
-                        <div 
-                            v-if="item.color"
-                            class="w-5 h-5 rounded border border-white shadow-sm ring-1 ring-gray-200"
-                            :style="{ backgroundColor: item.color }"
-                        ></div>
-                        <span v-else class="text-gray-300">-</span>
-                    </div>
-                </template>
 
                 <template #cell-coordinates="{ item }">
                     <div class="flex justify-center">
@@ -269,7 +254,7 @@ const columns = [
                 </template>
 
                 <template #cell-action="{ item }">
-                    <div class="flex justify-end items-center gap-1">
+                    <div v-if="can?.manage" class="flex justify-end items-center gap-1">
                         <button 
                             @click="openEditModal(item)"
                             class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
@@ -391,34 +376,7 @@ const columns = [
                         <InputError :message="form.errors.pic_user_id" class="mt-1" />
                     </div>
 
-                    <div>
-                        <div class="flex justify-between items-center mb-2">
-                            <InputLabel value="Warna Area (Peta)" class="text-[10px] uppercase tracking-widest text-gray-400" />
-                            <div class="flex items-center gap-2">
-                                <span class="text-[10px] font-mono text-gray-400 uppercase">{{ form.color }}</span>
-                                <div class="w-4 h-4 rounded-full border border-gray-200" :style="{ backgroundColor: form.color }"></div>
-                            </div>
-                        </div>
-                        <div class="grid grid-cols-10 gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                            <button 
-                                v-for="color in colorPresets" 
-                                :key="color"
-                                type="button"
-                                @click="form.color = color"
-                                :class="[
-                                    'w-6 h-6 rounded-md transition-all hover:scale-125 shadow-sm',
-                                    form.color === color ? 'ring-2 ring-indigo-500 ring-offset-2 scale-110' : 'border border-black/5'
-                                ]"
-                                :style="{ backgroundColor: color }"
-                            ></button>
-                            <div class="relative w-6 h-6 group">
-                                <input type="color" v-model="form.color" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                                <div class="w-6 h-6 rounded-md border border-dashed border-gray-400 flex items-center justify-center text-[10px] text-gray-500 group-hover:bg-gray-100 transition-colors">
-                                    +
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+
 
                     <div class="flex justify-end gap-3 pt-4 border-t mt-6">
                         <button 

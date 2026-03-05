@@ -11,6 +11,7 @@ import MappingNavigation from '@/Components/MappingNavigation.vue';
 
 const props = defineProps({
     floor: Object,
+    can: Object,
 });
 
 // --- State Management ---
@@ -30,17 +31,26 @@ const mapStyle = computed(() => {
     // Kursor Crosshair saat mode edit
     const blackCrosshair = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='1' x2='12' y2='23'></line><line x1='1' y1='12' x2='23' y2='12'></line></svg>") 12 12, crosshair`;
 
+    let cursorStyle = 'grab';
+    if (isDragging.value) {
+        cursorStyle = 'grabbing';
+    } else if (selectedRoom.value && !isClosed.value && props.can?.manage) {
+        cursorStyle = blackCrosshair;
+    }
+
     return {
         transform: `translate(${offset.value.x}px, ${offset.value.y}px) scale(${zoomLevel.value})`,
-        cursor: isDragging.value 
-            ? 'grabbing' 
-            : (selectedRoom.value && !isClosed.value ? blackCrosshair : 'grab')
+        cursor: cursorStyle
     };
 });
 
 // --- Mouse & Zoom Logic ---
 const handleMouseDown = (event) => {
-    if (event.button === 1 || (event.button === 0 && !selectedRoom.value)) {
+    // Tombol tengah mouse, ATAU
+    // Tombol kiri jika:
+    // 1. Tidak ada ruangan terpilih, ATAU
+    // 2. User dalam mode read-only (!props.can?.manage)
+    if (event.button === 1 || (event.button === 0 && (!selectedRoom.value || !props.can?.manage))) {
         isDragging.value = true;
         startPan.value = { 
             x: event.clientX - offset.value.x, 
@@ -77,6 +87,7 @@ const resetZoom = () => {
 
 // --- Mapping Logic ---
 const handleMapClick = (event) => {
+    if (!props.can?.manage) return;
     if (isDragging.value || !selectedRoom.value || isClosed.value) return;
 
     const rect = event.currentTarget.getBoundingClientRect();
@@ -150,7 +161,7 @@ onMounted(() => {
     const params = new URLSearchParams(window.location.search);
     const highlightRoomId = params.get('highlight_room');
 
-    if (highlightRoomId) {
+    if (highlightRoomId && props.floor.map_image_path) {
         const targetRoom = props.floor.rooms.find(r => r.id == highlightRoomId);
         if (targetRoom) {
             selectRoom(targetRoom);
@@ -184,7 +195,17 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
             </div>
         </template>
 
-        <div class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)] p-2">
+        <div v-if="!floor.map_image_path" class="p-6 m-6 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center gap-4">
+            <div class="p-3 bg-yellow-100 rounded-full">
+                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-yellow-800">Denah Belum Diupload</h3>
+                <p class="text-sm text-yellow-700">Lantai ini belum memiliki gambar denah. Silakan tambahkan file gambar denah di halaman Master Data Lantai terlebih dahulu agar bisa melakukan pemetaan ruangan.</p>
+            </div>
+        </div>
+
+        <div v-else class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)] p-2">
             <div class="w-full lg:w-72 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
                 <div class="p-4 bg-gray-50 border-b font-bold text-gray-700 flex items-center gap-2">
                     <Box class="w-4 h-4 text-indigo-500" /> Daftar Ruangan
@@ -197,7 +218,7 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
                                   selectedRoom?.id === room.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-500/10' : 'bg-white border-gray-100 text-gray-600 hover:border-indigo-200']"
                     >
                         <div class="flex items-center gap-3">
-                            <div class="w-3 h-3 rounded-full" :style="{ backgroundColor: room.color || '#ccc' }"></div>
+                            <div class="w-3 h-3 rounded-full bg-blue-500"></div>
                             <span class="font-medium">{{ room.name }}</span>
                         </div>
                         <div class="flex items-center gap-2">
@@ -210,20 +231,22 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
                 <div v-if="selectedRoom" class="p-4 bg-gray-50 border-t space-y-3">
                     <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-gray-400">
                         <span>Status:</span>
-                        <span :class="isClosed ? 'text-green-600' : 'text-orange-500'">{{ isClosed ? 'Area Terkunci' : 'Proses Gambar' }}</span>
+                        <span :class="isClosed ? 'text-green-600' : 'text-orange-500'">{{ isClosed ? 'Area Terkunci' : (can?.manage ? 'Proses Gambar' : 'Hanya Lihat') }}</span>
                     </div>
-                    <div class="flex gap-2">
-                        <button @click="undoLastPoint" class="flex-1 bg-white border border-gray-200 p-2 rounded-lg text-xs font-semibold hover:bg-gray-100 flex items-center justify-center gap-1 transition-colors">
-                            <Undo2 class="w-3 h-3"/> Undo
+                    <template v-if="can?.manage">
+                        <div class="flex gap-2">
+                            <button @click="undoLastPoint" class="flex-1 bg-white border border-gray-200 p-2 rounded-lg text-xs font-semibold hover:bg-gray-100 flex items-center justify-center gap-1 transition-colors">
+                                <Undo2 class="w-3 h-3"/> Undo
+                            </button>
+                            <button @click="resetPoints" class="flex-1 bg-white border border-red-100 text-red-500 p-2 rounded-lg text-xs font-semibold hover:bg-red-50 flex items-center justify-center gap-1 transition-colors">
+                                <RotateCcw class="w-3 h-3"/> Reset
+                            </button>
+                        </div>
+                        <button @click="submitMapping" :disabled="!isClosed || form.processing"
+                            class="w-full bg-indigo-600 text-white p-3 rounded-xl text-sm font-bold disabled:bg-gray-300 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                            <Save class="w-4 h-4" /> Simpan Pemetaan
                         </button>
-                        <button @click="resetPoints" class="flex-1 bg-white border border-red-100 text-red-500 p-2 rounded-lg text-xs font-semibold hover:bg-red-50 flex items-center justify-center gap-1 transition-colors">
-                            <RotateCcw class="w-3 h-3"/> Reset
-                        </button>
-                    </div>
-                    <button @click="submitMapping" :disabled="!isClosed || form.processing"
-                        class="w-full bg-indigo-600 text-white p-3 rounded-xl text-sm font-bold disabled:bg-gray-300 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
-                        <Save class="w-4 h-4" /> Simpan Pemetaan
-                    </button>
+                    </template>
                 </div>
             </div>
 
@@ -265,8 +288,8 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
                                 <component 
                                     :is="isClosed ? 'polygon' : 'polyline'"
                                     :points="form.coordinates.map(p => `${p.x},${p.y}`).join(' ')"
-                                    :fill="isClosed ? hexToRgba(selectedRoom?.color || '#3b82f6', 0.5) : 'transparent'"
-                                    :stroke="selectedRoom?.color || '#3b82f6'" 
+                                    :fill="isClosed ? hexToRgba('#3b82f6', 0.5) : 'transparent'"
+                                    :stroke="'#3b82f6'" 
                                     :stroke-width="0.4 / zoomLevel"
                                     :stroke-dasharray="isClosed ? '0' : '1, 1'"
                                 />

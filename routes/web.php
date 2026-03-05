@@ -15,6 +15,8 @@ use App\Http\Controllers\ScanController;
 use App\Http\Controllers\ChecklistParameterController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\AssetInspectionController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\RoleController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -76,6 +78,12 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/export', [App\Http\Controllers\ReportController::class, 'exportPdf'])->name('reports.export');
+    Route::get('/reports/pic', [App\Http\Controllers\ReportController::class, 'picIndex'])->name('reports.pic');
+
+    // User & Role Management
+    Route::resource('users', UserController::class)->except(['show', 'create', 'edit']);
+    Route::patch('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
+    Route::resource('roles', RoleController::class)->except(['show', 'create', 'edit', 'index']);
 });
 
 require __DIR__.'/auth.php';

@@ -15,6 +15,8 @@ import {
     ClipboardCheck, 
     ListCheck,
     UserCheck,
+    FileBarChart,
+    Users,
 } from 'lucide-vue-next';
 
 import ThemeToggle from '@/Components/ThemeToggle.vue'; 
@@ -23,62 +25,104 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 const name = computed(() => user.value?.name?.split(' ')[0]);
 
-const menuItems = [
+// Helper: cek apakah user memiliki permission tertentu
+const can = (permission) => {
+    return page.props.auth.permissions?.includes(permission) ?? false;
+};
+
+// Helper: cek apakah user memiliki salah satu dari beberapa permission
+const canAny = (...permissions) => {
+    return permissions.some(p => can(p));
+};
+
+const allMenuItems = [
     { 
         name: 'Dashboard', 
         icon: LayoutDashboard, 
         route: 'dashboard',
-        active: 'dashboard'
+        active: 'dashboard',
+        // dashboard dikesampingkan dulu — tampilkan selalu
+        permission: null,
     },
     { 
         name: 'Master Data', 
         icon: Database, 
         route: null,
         active: 'master.*', 
+        permission: 'view-master-data|manage-buildings|manage-floors|manage-rooms|manage-assets',
         children: [
-            { name: 'Data Gedung', route: 'buildings.index', icon: Building2 }, 
-            { name: 'Data Lantai', route: 'floors.index', icon: Layers }, 
-            { name: 'Data Ruangan/Area', route: 'rooms.index', icon: DoorOpen },
-            { name: 'Data Asset', route: 'apars.index', icon: Box },
+            { name: 'Data Gedung',        route: 'buildings.index', icon: Building2 }, 
+            { name: 'Data Lantai',        route: 'floors.index',    icon: Layers }, 
+            { name: 'Data Ruangan/Area',  route: 'rooms.index',     icon: DoorOpen },
+            { name: 'Data Asset',         route: 'apars.index',     icon: Box },
         ]
     },
     {
         name: 'Manajemen Jadwal',
         icon: CalendarClock,
         route: 'schedules.index',
+        permission: 'view-schedules',
     },
     {
         name: 'Monitoring Tugas',
         icon: ClipboardCheck,
         route: 'inspections.index',
+        permission: 'manage-inspections',
     },
     {
         name: 'Tugas K3',
         icon: UserCheck,
         route: 'inspections.open',
+        permission: 'execute-inspections',
     },
     {
         name: 'Tugas PIC',
         icon: UserCheck,
         route: 'inspections.my-tasks',
+        permission: 'view-assigned-inspections',
     },
     {
         name: 'Checklist Parameter',
         icon: ListCheck,
         route: 'checklist-parameters.index',
+        permission: 'manage-checklist-parameters',
     },
     {
         name: 'Riwayat Laporan',
         icon: ListCheck,
         route: 'reports.index',
+        permission: 'view-reports',
+    },
+    {
+        name: 'Laporan PIC',
+        icon: FileBarChart,
+        route: 'reports.pic',
+        permission: 'view-pic-reports',
+    },
+    {
+        name: 'Kelola Pengguna',
+        icon: Users,
+        route: 'users.index',
+        permission: 'view-users',
     },
     { 
         name: 'Logout', 
         icon: LogOut, 
         route: 'logout',
-        method: 'post' 
+        method: 'post',
+        permission: null, // selalu tampil
     },
 ];
+
+// Filter menu berdasarkan permission
+const menuItems = computed(() => {
+    return allMenuItems.filter(item => {
+        if (!item.permission) return true; // null = selalu tampil
+        // Bisa berisi beberapa permission dipisah '|', tampilkan jika punya salah satu
+        const perms = item.permission.split('|');
+        return perms.some(p => can(p));
+    });
+});
 
 const isHovered = ref(false);
 const expandedMenu = ref(null);

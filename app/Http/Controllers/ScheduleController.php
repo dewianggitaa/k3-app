@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Schedule;
 use App\Models\Building;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Artisan;
 
@@ -12,6 +13,8 @@ class ScheduleController extends Controller
 {
     public function index(Request $request)
     {
+        abort_unless(Auth::user()->can('view-schedules'), 403, 'Anda tidak memiliki izin untuk mengakses halaman jadwal.');
+
         $query = Schedule::with('buildings');
 
         if ($request->search) {
@@ -22,14 +25,19 @@ class ScheduleController extends Controller
             'schedules' => $query->latest()
                 ->paginate(10)
                 ->withQueryString(),
-
             'buildings' => Building::select('id', 'name')->orderBy('name')->get(),
             'filters'   => $request->only(['search']),
+            'can'       => [
+                'create' => Auth::user()->can('create-schedules'),
+                'delete' => Auth::user()->can('delete-schedules'),
+            ],
         ]);
     }
 
     public function store(Request $request)
     {
+        abort_unless(Auth::user()->can('create-schedules'), 403, 'Anda tidak memiliki izin membuat jadwal.');
+
         $request->validate([
             'asset_type'      => 'required|string',
             'months_interval' => 'required|integer|min:1',
@@ -38,7 +46,7 @@ class ScheduleController extends Controller
             'scope'           => 'required|in:global,building',
             'building_ids'    => 'required_if:scope,building|array',
             'building_ids.*'  => 'exists:buildings,id',
-            'assign_type'     => 'required|in:k3,pic'
+            'assign_type'     => 'required|in:k3,pic',
         ]);
 
         $schedule = Schedule::create([
@@ -62,6 +70,8 @@ class ScheduleController extends Controller
 
     public function update(Request $request, $id)
     {
+        abort_unless(Auth::user()->can('delete-schedules'), 403, 'Anda tidak memiliki izin mengubah jadwal.');
+
         $schedule = Schedule::findOrFail($id);
 
         $request->validate([
@@ -78,7 +88,7 @@ class ScheduleController extends Controller
             'week_rank'       => $request->week_rank,
             'assign_type'     => $request->assign_type,
             'scope'           => $request->scope,
-            'next_run_date'   => $request->start_date, 
+            'next_run_date'   => $request->start_date,
         ]);
 
         if ($request->scope === 'building') {
@@ -95,8 +105,9 @@ class ScheduleController extends Controller
 
     public function destroy($id)
     {
+        abort_unless(Auth::user()->can('delete-schedules'), 403, 'Anda tidak memiliki izin menghapus jadwal.');
+
         $schedule = Schedule::findOrFail($id);
-        
         $schedule->delete();
 
         return redirect()->route('schedules.index')

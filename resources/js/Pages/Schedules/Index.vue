@@ -23,6 +23,7 @@ const props = defineProps({
     schedules: Object,
     filters: Object,
     buildings: Array,
+    can: Object,
 });
 
 const search = ref(props.filters?.search || '');
@@ -112,7 +113,7 @@ const columns = [
     { label: 'Target Inspeksi', key: 'target', class: 'w-1/3 text-center' },
     { label: 'Jadwal & Frekuensi', key: 'frequency', class:'text-center' },
     { label: 'Generate Berikutnya', key: 'next_run', class:'text-center w-fit px-4' },
-    { label: 'Aksi', key: 'action', class: 'text-center' },
+    ...(props.can?.create || props.can?.delete ? [{ label: 'Aksi', key: 'action', class: 'text-center' }] : []),
 ];
 
 const getAssetIcon = (type) => {
@@ -144,7 +145,7 @@ const getAssetName = (type) => {
                 <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                     <SearchInput v-model="search" placeholder="Cari aset..." class="w-full md:w-64" />
                     
-                    <button @click="openCreateModal" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-md flex items-center gap-2 shadow-sm transition-all">
+                    <button v-if="can?.create" @click="openCreateModal" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-md flex items-center gap-2 shadow-sm transition-all">
                         <Plus class="w-4 h-4" /> Buat Jadwal Baru
                     </button>
                 </div>
@@ -231,11 +232,11 @@ const getAssetName = (type) => {
                 </template>
 
                 <template #cell-action="{ item }">
-                    <div class="flex justify-center gap-1">
-                        <button @click="openEditModal(item)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Edit Aturan">
+                    <div v-if="can?.create || can?.delete" class="flex justify-center gap-1">
+                        <button v-if="can?.create" @click="openEditModal(item)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Edit Aturan">
                             <Pencil class="w-4 h-4" />
                         </button>
-                        <button @click="deleteSchedule(item.id)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Aturan">
+                        <button v-if="can?.delete" @click="deleteSchedule(item.id)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Aturan">
                             <Trash2 class="w-4 h-4" />
                         </button>
                     </div>

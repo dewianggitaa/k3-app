@@ -20,6 +20,7 @@ import PrimaryButton from '@/Components/PrimaryButton.vue';
 const props = defineProps({
     buildings: Object,
     filters: Object,
+    can: Object,
 });
 
 // --- STATE & LOGIC ---
@@ -127,7 +128,7 @@ const columns = [
     { label: 'No', key: 'no', class: 'w-12 text-center' },
     { label: 'Kode Gedung', key: 'code', class: 'w-32' },
     { label: 'Nama Gedung', key: 'name', class: 'font-medium' },
-    { label: '', key: 'action', class: 'w-24 text-right' },
+    ...(props.can?.manage ? [{ label: '', key: 'action', class: 'w-24 text-right' }] : []),
 ];
 </script>
 
@@ -151,6 +152,7 @@ const columns = [
                     </div>
 
                     <button 
+                        v-if="can?.manage"
                         @click="openCreateModal"
                         class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md shadow-sm flex items-center gap-2 transition-all"
                     >
@@ -178,7 +180,7 @@ const columns = [
                 </template>
 
                 <template #cell-action="{ item }">
-                    <div class="flex justify-end items-center gap-1">
+                    <div v-if="can?.manage" class="flex justify-end items-center gap-1">
                         <button 
                             @click="openEditModal(item)"
                             class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"

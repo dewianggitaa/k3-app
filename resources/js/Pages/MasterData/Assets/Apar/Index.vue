@@ -24,6 +24,7 @@ const props = defineProps({
     aparTypes: Array,
     rooms: Array,
     filters: Object,
+    can: Object,
 });
 
 const search = ref(props.filters.search || '');
@@ -111,7 +112,7 @@ const columns = [
     { label: 'Lokasi', key: 'location' },
     { label: 'Status', key: 'status' },
     { label: 'Masa Berlaku', key: 'expired', class: 'w-32' },
-    { label: '', key: 'action', class: 'text-right' },
+    ...(props.can?.manage ? [{ label: '', key: 'action', class: 'text-right' }] : []),
 ];
 </script>
 
@@ -166,7 +167,7 @@ const columns = [
             <template #header>
                 <div class="flex justify-between items-center gap-4">
                     <SearchInput v-model="search" placeholder="Cari kode atau jenis APAR..." class="w-64" />
-                    <button @click="openCreateModal" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md flex items-center gap-2">
+                    <button v-if="can?.manage" @click="openCreateModal" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md flex items-center gap-2">
                         <Plus class="w-4 h-4" /> Tambah APAR
                     </button>
                 </div>
@@ -216,7 +217,7 @@ const columns = [
                 </template>
 
                 <template #cell-action="{ item }">
-                    <div class="flex justify-end gap-1">
+                    <div v-if="can?.manage" class="flex justify-end gap-1">
                         <div v-if="item.room?.floor_id">
                             <Link 
                                 :href="route('assets.mapping', { 
