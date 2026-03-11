@@ -10,7 +10,6 @@ const props = defineProps({
     mode: String // Menerima 'in' (penambahan) atau 'out' (pemakaian)
 });
 
-// Ambil data user yang sedang login
 const user = usePage().props.auth?.user;
 
 const form = useForm({
@@ -37,7 +36,6 @@ const submit = () => {
         return;
     }
 
-    // Tentukan route tujuan berdasarkan mode
     const postRoute = props.mode === 'out' 
         ? route('p3k.store-usage', props.box.id) 
         : route('p3k.store-restock', props.box.id);
@@ -62,45 +60,45 @@ const submit = () => {
 <template>
     <Head :title="mode === 'out' ? 'Lapor Pemakaian' : 'Penambahan Stok'" />
 
-    <div class="min-h-screen bg-gray-50 flex flex-col">
+    <div class="min-h-screen bg-ghost flex flex-col">
         
-        <div class="bg-white px-4 py-3 shadow-sm flex items-center gap-3 sticky top-0 z-10">
-            <Link :href="route('p3k.menu', box.id)" class="p-2 rounded-full hover:bg-gray-100 text-gray-600">
+        <div class="bg-surface px-4 py-3 shadow-sm flex items-center gap-3 sticky top-0 z-10">
+            <Link :href="route('p3k.menu', box.id)" class="p-2 rounded-full hover:bg-ghost text-ink-light">
                 <ArrowLeft class="w-6 h-6" />
             </Link>
             <div>
-                <h1 class="font-bold text-gray-800 leading-tight">
+                <h1 class="font-bold text-ink leading-tight">
                     {{ mode === 'out' ? 'Lapor Pemakaian' : 'Penambahan Stok' }}
                 </h1>
-                <p class="text-xs text-gray-500">{{ box.code }}</p>
+                <p class="text-xs text-ink-light">{{ box.code }}</p>
             </div>
         </div>
 
         <div class="flex-1 p-4 max-w-lg mx-auto w-full pb-24">
             
-            <div class="mb-6 p-3 rounded-xl text-center font-bold border"
-                :class="mode === 'out' ? 'bg-red-50 text-red-600 border-red-200' : 'bg-blue-50 text-blue-600 border-blue-200'">
+            <div class="mb-6 p-3 rounded-md text-center font-bold border"
+                :class="mode === 'out' ? 'bg-danger/10 text-danger border-danger/30' : 'bg-primary/10 text-primary border-primary'">
                 {{ mode === 'out' ? 'Mode: Pencatatan Pemakaian' : 'Mode: Restock K3' }}
             </div>
 
             <form @submit.prevent="submit" class="space-y-4">
                 
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                    <h3 class="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                <div class="bg-surface p-4 rounded-md shadow-sm border border-ghost-hover">
+                    <h3 class="text-xs font-bold text-ink-light uppercase mb-3 flex items-center gap-2">
                         <User class="w-4 h-4" /> Data Pelapor
                     </h3>
 
                     <div v-if="mode === 'out'" class="space-y-3">
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Nama Lengkap *</label>
+                            <label class="block text-xs font-bold text-ink dark:text-ink-dark/90 mb-1">Nama Lengkap *</label>
                             <input type="text" v-model="form.reporter_name" required
-                                class="w-full rounded-lg border-gray-300 focus:ring-red-500 focus:border-red-500"
+                                class="w-full rounded-md border-ghost-hover focus:ring-red-500 focus:border-danger/30"
                                 placeholder="Masukkan nama Anda...">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-gray-700 mb-1">Departemen *</label>
+                            <label class="block text-xs font-bold text-ink dark:text-ink-dark/90 mb-1">Departemen *</label>
                             <select v-model="form.department_id" required
-                                class="w-full rounded-lg border-gray-300 focus:ring-red-500 focus:border-red-500 bg-white">
+                                class="w-full rounded-md border-ghost-hover focus:ring-red-500 focus:border-danger/30 bg-surface">
                                 <option value="" disabled>-- Pilih --</option>
                                 <option v-for="dept in departments" :key="dept.id" :value="dept.id">
                                     {{ dept.name }}
@@ -110,30 +108,30 @@ const submit = () => {
                     </div>
 
                     <div v-else class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg">
+                        <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-lg">
                             {{ user?.name?.charAt(0) || 'K' }}
                         </div>
                         <div>
-                            <p class="font-bold text-gray-800">{{ user?.name || 'Admin K3' }}</p>
-                            <p class="text-xs text-blue-600 font-medium">Tim K3 (Terverifikasi)</p>
+                            <p class="font-bold text-ink">{{ user?.name || 'Admin K3' }}</p>
+                            <p class="text-xs text-primary font-medium">Tim K3 (Terverifikasi)</p>
                         </div>
                     </div>
 
                 </div>
 
                 <div v-for="(item, index) in form.items" :key="index" 
-                    class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative">
+                    class="bg-surface p-4 rounded-md shadow-sm border border-ghost-hover relative">
                     
                     <button v-if="form.items.length > 1" type="button" @click="removeItem(index)" 
-                        class="absolute top-3 right-3 text-gray-300 hover:text-red-500 p-1">
+                        class="absolute top-3 right-3 text-gray-300 hover:text-danger p-1">
                         <Trash2 class="w-4 h-4" />
                     </button>
 
                     <div class="pr-8">
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Nama Barang *</label>
+                        <label class="block text-xs font-bold text-ink-light uppercase mb-1">Nama Barang *</label>
                         <select v-model="item.id" required
-                            class="w-full rounded-lg border-gray-200 bg-gray-50 focus:bg-white"
-                            :class="mode === 'out' ? 'focus:ring-red-500' : 'focus:ring-blue-500'">
+                            class="w-full rounded-md border-ghost-hover bg-ghost focus:bg-surface"
+                            :class="mode === 'out' ? 'focus:ring-red-500' : 'focus:ring-primary'">
                             <option value="" disabled>-- Pilih Item --</option>
                             <option v-for="med in medicines" :key="med.id" :value="med.id">
                                 {{ med.name }}
@@ -142,36 +140,36 @@ const submit = () => {
                     </div>
 
                     <div class="mt-4">
-                        <label class="block text-xs font-bold text-gray-400 uppercase mb-1">
+                        <label class="block text-xs font-bold text-ink-light uppercase mb-1">
                             Jumlah {{ mode === 'out' ? 'Keluar' : 'Masuk' }} *
                         </label>
                         <input type="number" v-model="item.qty" min="1" required
-                            class="w-full rounded-lg border-gray-200 font-bold text-lg"
-                            :class="mode === 'out' ? 'text-red-600 focus:ring-red-500' : 'text-blue-600 focus:ring-blue-500'">
+                            class="w-full rounded-md border-ghost-hover font-bold text-lg"
+                            :class="mode === 'out' ? 'text-danger focus:ring-red-500' : 'text-primary focus:ring-primary'">
                     </div>
                 </div>
 
                 <button type="button" @click="addItem" 
-                    class="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 font-bold hover:bg-white transition flex items-center justify-center gap-2">
+                    class="w-full py-3 border-2 border-dashed border-ghost-hover rounded-md text-ink-light font-bold hover:bg-surface transition flex items-center justify-center gap-2">
                     <Plus class="w-5 h-5" /> Tambah Item Lain
                 </button>
 
                 <div class="mt-6">
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Catatan (Opsional)</label>
+                    <label class="block text-sm font-bold text-ink dark:text-ink-dark/90 mb-2">Catatan (Opsional)</label>
                     <textarea v-model="form.notes" rows="2" 
-                        class="w-full rounded-xl border-gray-200"
-                        :class="mode === 'out' ? 'focus:ring-red-500 focus:border-red-500' : 'focus:ring-blue-500 focus:border-blue-500'"
+                        class="w-full rounded-md border-ghost-hover"
+                        :class="mode === 'out' ? 'focus:ring-red-500 focus:border-danger/30' : 'focus:ring-primary focus:border-primary'"
                         placeholder="Contoh: Terkena pisau / Restock bulan Februari..."></textarea>
                 </div>
 
             </form>
         </div>
 
-        <div class="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 z-20">
+        <div class="fixed bottom-0 left-0 right-0 p-4 bg-surface border-t border-ghost-hover z-20">
             <div class="max-w-lg mx-auto">
                 <button @click="submit" :disabled="form.processing"
-                    class="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition"
-                    :class="mode === 'out' ? 'bg-red-600 hover:bg-red-700 shadow-red-200' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-200'">
+                    class="w-full py-4 rounded-md text-white font-bold text-lg shadow-lg flex items-center justify-center gap-2 transition"
+                    :class="mode === 'out' ? 'bg-danger hover:bg-red-700 shadow-red-200' : 'bg-primary hover:bg-primary-hover shadow-blue-200'">
                     <Save class="w-5 h-5" />
                     {{ form.processing ? 'Menyimpan...' : (mode === 'out' ? 'Simpan Laporan' : 'Simpan Restock') }}
                 </button>

@@ -15,6 +15,7 @@ class Hydrant extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['code', 'hydrant_type_id', 'room_id', 'status', 'location_data'])
+            ->logOnlyDirty()
             ->setDescriptionForEvent(fn(string $eventName) => "Hydrant {$eventName}")
             ->useLogName('aset');
     }

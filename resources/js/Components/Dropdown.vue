@@ -12,7 +12,7 @@ const props = defineProps({
     },
     contentClasses: {
         type: String,
-        default: 'py-1 bg-white',
+        default: 'py-2 bg-surface text-ink dark:bg-surface-dark dark:text-ink-dark/90',
     },
 });
 
@@ -27,7 +27,11 @@ onUnmounted(() => document.removeEventListener('keydown', closeOnEscape));
 
 const widthClass = computed(() => {
     return {
-        48: 'w-48',
+        '48': 'w-48',
+        '64': 'w-64',
+        '72': 'w-72',
+        '80': 'w-80',
+        '96': 'w-96',
         'full': 'w-full',
     }[props.width.toString()];
 });
@@ -43,6 +47,7 @@ const alignmentClasses = computed(() => {
 });
 
 const open = ref(false);
+
 </script>
 
 <template>
@@ -51,10 +56,9 @@ const open = ref(false);
             <slot name="trigger" />
         </div>
 
-        <!-- Full Screen Dropdown Overlay -->
         <div
             v-show="open"
-            class="fixed inset-0 z-40"
+            class="fixed inset-0 z-50"
             @click="open = false"
         ></div>
 
@@ -68,13 +72,13 @@ const open = ref(false);
         >
             <div
                 v-show="open"
-                class="absolute z-50 mt-2 rounded-md shadow-lg"
+                class="absolute z-50 mt-2 rounded-xl shadow-xl border border-ghost-hover dark:border-ghost-dark bg-surface dark:bg-page-dark max-w-[calc(100vw-2rem)] md:max-w-full"
                 :class="[widthClass, alignmentClasses]"
                 style="display: none"
                 @click="open = false"
             >
                 <div
-                    class="rounded-md ring-1 ring-black ring-opacity-5"
+                    class="rounded-xl overflow-y-auto overflow-x-hidden ring-1 ring-black ring-opacity-5 max-h-[60vh] sm:max-h-72"
                     :class="contentClasses"
                 >
                     <slot name="content" />

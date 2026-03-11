@@ -89,19 +89,73 @@ class P3kController extends Controller
 
         $inspection = null;
         if ($request->inspection_id) {
-            $inspection = Inspection::find($request->inspection_id);
-        } else {
-            $inspection = Inspection::where('assetable_type', P3k::class)
+            $found = Inspection::find($request->inspection_id);
+            if ($found && in_array($found->status, ['pending', 'overdue'])) {
+                $inspection = $found;
+            }
+        } 
+        
+        if (!$inspection) {
+            $query = Inspection::where('assetable_type', P3k::class)
                 ->where('assetable_id', $p3k->id)
-                ->whereNotIn('status', ['completed'])
-                ->orderBy('schedule_date', 'asc')
-                ->first();
+                ->whereIn('status', ['pending', 'overdue'])
+                ->orderByRaw("FIELD(status, 'overdue', 'pending') ASC")
+                ->orderBy('schedule_date', 'asc');
+                
+            if (Auth::check()) {
+                $user = Auth::user();
+                $inspection = (clone $query)->where('user_id', $user->id)->first();
+                
+                if (!$inspection) {
+                    $isK3Department = optional($user->department)->name === 'K3';
+                    $hasK3Role = $user->hasRole('executor_k3');
+                    if ($isK3Department || $hasK3Role) {
+                        $inspection = (clone $query)->whereNull('user_id')->first();
+                    }
+                }
+            }
+            
+            if (!$inspection) {
+                $inspection = $query->first();
+            }
         }
 
         return Inertia::render('P3k/Menu', [
             'asset'      => $p3k,
             'inspection' => $inspection,
         ]);
+    }
+    
+    public function executePending($id)
+    {
+        $p3k = P3k::findOrFail($id);
+        
+        $query = Inspection::where('assetable_type', P3k::class)
+            ->where('assetable_id', $p3k->id)
+            ->whereIn('status', ['pending', 'overdue'])
+            ->orderByRaw("FIELD(status, 'overdue', 'pending') ASC")
+            ->orderBy('schedule_date', 'asc');
+            
+        $user = Auth::user();
+        $inspection = (clone $query)->where('user_id', $user->id)->first();
+        
+        if (!$inspection) {
+            $isK3Department = optional($user->department)->name === 'K3';
+            $hasK3Role = $user->hasRole('executor_k3');
+            if ($isK3Department || $hasK3Role) {
+                $inspection = (clone $query)->whereNull('user_id')->first();
+            }
+        }
+        
+        if (!$inspection) {
+            $inspection = $query->first(); // Absolute fallback
+        }
+        
+        if ($inspection) {
+            return redirect()->route('inspections.execute', $inspection->id);
+        }
+        
+        return redirect()->route('p3k.menu', $id)->with('error', 'Tidak ada inspeksi aktif untuk Anda.');
     }
 
     public function createUsage($id)
@@ -199,9 +253,9 @@ class P3kController extends Controller
                 }
 
                 $inventory->current_qty = $newQty;
-                $inventory->save();
+                $inventory->saveQuietly();
 
-                DB::table('p3k_usages')->insert([
+                \App\Models\P3kUsage::create([
                     'p3k_id'        => $id,
                     'p3k_item_id'   => $item['id'],
                     'type'          => $request->type,
@@ -210,8 +264,6 @@ class P3kController extends Controller
                     'reporter_name' => $reporterName,
                     'department_id' => $deptId,
                     'notes'         => $request->notes,
-                    'created_at'    => now(),
-                    'updated_at'    => now(),
                 ]);
             }
 
@@ -230,7 +282,7 @@ class P3kController extends Controller
                 }
             }
 
-            $p3k->update(['status' => $isCritical ? 'critical' : 'safe']);
+            $p3k->updateQuietly(['status' => $isCritical ? 'critical' : 'safe']);
 
             DB::commit();
 

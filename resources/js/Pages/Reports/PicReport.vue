@@ -1,11 +1,14 @@
 <script setup>
 import { Head, router } from '@inertiajs/vue3';
-import { ref, computed } from 'vue';
-import { FileBarChart, Box, ShieldAlert, Calendar, ChevronDown, Check } from 'lucide-vue-next';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { debounce } from 'lodash';
+import { FileBarChart, Box, ShieldAlert, Calendar, ChevronDown, Filter, Search } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
 import Card from '@/Components/Card.vue';
 import Pagination from '@/Components/Pagination.vue';
+import SearchInput from '@/Components/SearchInput.vue';
+import Dropdown from '@/Components/Dropdown.vue';
 
 const props = defineProps({
     activeTab: String,
@@ -14,12 +17,46 @@ const props = defineProps({
     reports: Object,
 });
 
-// ─── Filter state ──────────────────────────────────────────────────────────────
 const filterForm = ref({
+    search:     props.filters.search || '',
     year:       props.filters.year,
     month:      props.filters.month,
     asset_code: props.filters.asset_code || 'all',
 });
+
+const showFilters = ref(false);
+const filterWrapper = ref(null);
+
+const handleOutsideClick = (e) => {
+    if (showFilters.value && filterWrapper.value && filterWrapper.value.$el && !filterWrapper.value.$el.contains(e.target)) {
+        showFilters.value = false;
+    }
+};
+
+const handleScroll = (e) => {
+    if (showFilters.value && filterWrapper.value && filterWrapper.value.$el) {
+        if (!filterWrapper.value.$el.contains(e.target)) {
+            showFilters.value = false;
+        }
+    }
+};
+
+onMounted(() => {
+    document.addEventListener('click', handleOutsideClick);
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
+});
+
+onUnmounted(() => {
+    document.removeEventListener('click', handleOutsideClick);
+    window.removeEventListener('scroll', handleScroll, { capture: true });
+});
+
+watch(filterForm, debounce(() => {
+    router.get(route('reports.pic'), {
+        tab: props.activeTab,
+        ...filterForm.value,
+    }, { preserveState: true, preserveScroll: true, replace: true });
+}, 300), { deep: true });
 
 const currentYear = new Date().getFullYear();
 const yearOptions = Array.from({ length: 4 }, (_, i) => currentYear - 1 + i);
@@ -68,7 +105,6 @@ const activePreset = computed(() => {
     return null;
 });
 
-// ─── Navigation ────────────────────────────────────────────────────────────────
 const changeTab = (tabName) => {
     router.get(route('reports.pic'), {
         tab: tabName,
@@ -76,14 +112,8 @@ const changeTab = (tabName) => {
     }, { preserveState: true, preserveScroll: true });
 };
 
-const applyFilter = () => {
-    router.get(route('reports.pic'), {
-        tab: props.activeTab,
-        ...filterForm.value,
-    }, { preserveState: true, preserveScroll: true });
-};
+const applyFilter = () => {};
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = (dateString) => {
     if (!dateString) return '-';
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
@@ -92,24 +122,21 @@ const formatDate = (dateString) => {
 
 const currentAssets = computed(() => props.assetsList[props.activeTab] || []);
 
-// Status badge config for P3K
 const p3kStatusConfig = {
-    'Aman':          { bg: 'bg-emerald-100 text-emerald-700 border-emerald-200',   dot: 'bg-emerald-400' },
-    'Perlu Ditambah': { bg: 'bg-red-100 text-red-700 border-red-200',            dot: 'bg-red-400' },
-    'Sudah Ditambah': { bg: 'bg-blue-100 text-blue-700 border-blue-200',          dot: 'bg-blue-400' },
+    'Aman':          { bg: 'bg-success/20 text-success border-success/30',   dot: 'bg-emerald-400' },
+    'Perlu Ditambah': { bg: 'bg-danger/20 text-danger border-danger/30',            dot: 'bg-red-400' },
+    'Sudah Ditambah': { bg: 'bg-primary/10 text-primary border-primary',          dot: 'bg-blue-400' },
 };
 
-// Status badge config for APAR validation
 const validationConfig = {
-    'Sudah Divalidasi': { bg: 'bg-indigo-100 text-indigo-700 border-indigo-200', icon: '✓' },
-    'Belum Divalidasi': { bg: 'bg-gray-100 text-gray-500 border-gray-200',       icon: '○' },
+    'Sudah Divalidasi': { bg: 'bg-primary/10 text-primary border-primary', icon: '✓' },
+    'Belum Divalidasi': { bg: 'bg-ghost text-ink-light border-ghost-hover',       icon: '○' },
 };
 
-// Status badge config for APAR repair
 const repairConfig = {
-    'Aman':            { bg: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-    'Perlu Perbaikan': { bg: 'bg-red-100 text-red-700 border-red-200' },
-    'Sudah Diperbaiki': { bg: 'bg-blue-100 text-blue-700 border-blue-200' },
+    'Aman':            { bg: 'bg-success/20 text-success border-success/30' },
+    'Perlu Perbaikan': { bg: 'bg-danger/20 text-danger border-danger/30' },
+    'Sudah Diperbaiki': { bg: 'bg-primary/10 text-primary border-primary' },
 };
 </script>
 
@@ -119,104 +146,141 @@ const repairConfig = {
     <MainLayout>
         <template #header-title>
             <div class="flex items-center gap-4 px-4">
-                <h2 class="font-bold text-lg text-gray-800 leading-tight flex items-center gap-2">
-                    <FileBarChart class="w-5 h-5 text-indigo-500" /> Laporan Inspeksi PIC
+                <h2 class="font-bold text-lg text-ink leading-tight flex items-center gap-2">
+                    <FileBarChart class="w-5 h-5 text-primary" /> Laporan Inspeksi PIC
                 </h2>
+            </div>
+        </template>
+
+        <template #header-nav>
+            <div class="px-4 bg-surface dark:bg-surface-dark overflow-x-auto scrollbar-hide border-b border-ghost-hover custom-scrollbar w-full">
+                <nav class="-mb-px flex space-x-6">
+                    <button @click="changeTab('p3k')"
+                        :class="activeTab === 'p3k' ? 'border-primary text-primary' : 'border-transparent text-ink-light hover:text-ink dark:text-ink-dark/90'"
+                        class="whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition flex items-center gap-2 pt-1">
+                        <Box class="w-4 h-4" /> Kotak P3K
+                    </button>
+                    <button @click="changeTab('apar')"
+                        :class="activeTab === 'apar' ? 'border-primary text-primary' : 'border-transparent text-ink-light hover:text-ink dark:text-ink-dark/90'"
+                        class="whitespace-nowrap pb-3 border-b-2 font-bold text-sm transition flex items-center gap-2 pt-1">
+                        <ShieldAlert class="w-4 h-4" /> Inspeksi APAR
+                    </button>
+                </nav>
             </div>
         </template>
 
         <div class="space-y-4">
 
-            <!-- Tab navigation -->
-            <div class="border-b border-gray-200 px-2">
-                <nav class="-mb-px flex space-x-8 overflow-x-auto">
-                    <button @click="changeTab('p3k')"
-                        :class="activeTab === 'p3k' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                        class="whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm transition flex items-center gap-2">
-                        <Box class="w-4 h-4" /> Kotak P3K
-                    </button>
-                    <button @click="changeTab('apar')"
-                        :class="activeTab === 'apar' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
-                        class="whitespace-nowrap pb-4 px-1 border-b-2 font-bold text-sm transition flex items-center gap-2">
-                        <ShieldAlert class="w-4 h-4" /> Inspeksi APAR
-                    </button>
-                </nav>
-            </div>
-
-            <!-- ─── Filter card ──────────────────────────────────────────────── -->
-            <Card no-padding class="p-4">
-                <!-- Quick presets -->
-                <div class="flex flex-wrap gap-2 mb-4">
-                    <span class="text-xs font-bold text-gray-400 uppercase tracking-wider self-center mr-1">Cepat:</span>
-                    <button @click="applyPreset('this_month')"
-                        :class="activePreset === 'this_month' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'"
-                        class="px-3 py-1 rounded-full text-xs font-semibold border transition">
-                        Bulan Ini
-                    </button>
-                    <button @click="applyPreset('prev_month')"
-                        :class="activePreset === 'prev_month' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'"
-                        class="px-3 py-1 rounded-full text-xs font-semibold border transition">
-                        Bulan Lalu
-                    </button>
-                    <button @click="applyPreset('this_year')"
-                        :class="activePreset === 'this_year' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'"
-                        class="px-3 py-1 rounded-full text-xs font-semibold border transition">
-                        Tahun Ini
-                    </button>
-                </div>
-
-                <div class="flex flex-wrap items-end gap-3">
-                    <!-- Year -->
-                    <div class="w-28">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">Tahun</label>
-                        <div class="relative">
-                            <select v-model="filterForm.year"
-                                class="w-full appearance-none bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 py-2 pl-3 pr-8">
-                                <option v-for="y in yearOptions" :key="y" :value="y">{{ y }}</option>
-                            </select>
-                            <ChevronDown class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+            <Card ref="filterWrapper" no-padding class="p-4 overflow-visible" overflow-visible>
+                
+                <div class="flex flex-col xl:flex-row-reverse gap-4 justify-between items-start xl:items-end w-full">
+                    
+                    <div class="flex flex-row gap-2 w-full xl:w-auto shrink-0 xl:mb-[3px]">
+                        <div class="flex-1 min-w-0 xl:flex-none xl:w-64">
+                            <SearchInput v-model="filterForm.search" placeholder="Cari laporan..." />
                         </div>
+                        <button @click="showFilters = !showFilters" class="xl:hidden p-2 bg-ghost border border-ghost-hover hover:border-primary text-ink-light rounded-md flex items-center justify-center h-[38px] w-[38px] shrink-0 transition-colors">
+                            <Filter class="w-4 h-4" />
+                        </button>
                     </div>
 
-                    <!-- Month -->
-                    <div class="w-40">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">Bulan</label>
-                        <div class="relative">
-                            <select v-model="filterForm.month"
-                                class="w-full appearance-none bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 py-2 pl-3 pr-8">
-                                <option v-for="opt in monthOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
-                            </select>
-                            <ChevronDown class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <div :class="[showFilters ? 'flex' : 'hidden', 'xl:flex flex-col md:flex-row flex-wrap gap-3 w-full xl:w-auto items-end']">
+                        
+                        <div class="w-full sm:w-auto flex items-center flex-wrap gap-2 shrink-0 md:mr-2">
+                            <span class="text-[10px] font-bold text-ink-light uppercase tracking-wider self-center hidden sm:inline-block">Cepat:</span>
+                            <div class="flex gap-1.5 flex-wrap">
+                                <button @click="applyPreset('this_month')"
+                                    :class="activePreset === 'this_month' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-ghost text-ink-light border-ghost-hover hover:border-primary/50 hover:text-primary'"
+                                    class="px-3 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap outline-none">
+                                    Bulan Ini
+                                </button>
+                                <button @click="applyPreset('prev_month')"
+                                    :class="activePreset === 'prev_month' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-ghost text-ink-light border-ghost-hover hover:border-primary/50 hover:text-primary'"
+                                    class="px-3 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap outline-none">
+                                    Bln Lalu
+                                </button>
+                                <button @click="applyPreset('this_year')"
+                                    :class="activePreset === 'this_year' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-ghost text-ink-light border-ghost-hover hover:border-primary/50 hover:text-primary'"
+                                    class="px-3 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap outline-none">
+                                    Thn Ini
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="w-full sm:w-28 flex-shrink-0">
+                            <label class="block text-xs font-bold text-ink-light mb-1">Tahun</label>
+                            <Dropdown align="right" width="full">
+                                <template #trigger>
+                                    <button type="button" class="appearance-none h-[38px] bg-ghost border border-ghost-hover hover:border-primary text-ink dark:text-ink-dark/90 text-[13px] rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2 text-left flex justify-between items-center transition-colors cursor-pointer outline-none w-full">
+                                        <span class="truncate">{{ filterForm.year }}</span>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
+                                            <ChevronDown class="w-3.5 h-3.5" />
+                                        </div>
+                                    </button>
+                                </template>
+                                <template #content>
+                                    <div class="py-1 max-h-60 overflow-y-auto">
+                                        <button v-for="y in yearOptions" :key="y" @click="filterForm.year = y" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': filterForm.year === y }">
+                                            {{ y }}
+                                        </button>
+                                    </div>
+                                </template>
+                            </Dropdown>
+                        </div>
+
+                        <div class="w-full sm:w-40 flex-shrink-0">
+                            <label class="block text-xs font-bold text-ink-light mb-1">Bulan</label>
+                            <Dropdown align="right" width="full">
+                                <template #trigger>
+                                    <button type="button" class="appearance-none h-[38px] bg-ghost border border-ghost-hover hover:border-primary text-ink dark:text-ink-dark/90 text-[13px] rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2 text-left flex justify-between items-center transition-colors cursor-pointer outline-none w-full">
+                                        <span class="truncate">{{ monthOptions.find(m => m.value == filterForm.month)?.label || 'Semua Bulan' }}</span>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
+                                            <ChevronDown class="w-3.5 h-3.5" />
+                                        </div>
+                                    </button>
+                                </template>
+                                <template #content>
+                                    <div class="py-1 max-h-60 overflow-y-auto">
+                                        <button v-for="opt in monthOptions" :key="opt.value" @click="filterForm.month = opt.value" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': filterForm.month == opt.value }">
+                                            {{ opt.label }}
+                                        </button>
+                                    </div>
+                                </template>
+                            </Dropdown>
+                        </div>
+
+                        <div class="w-full sm:w-44 lg:w-48 flex-shrink-0">
+                            <label class="block text-xs font-bold text-ink-light mb-1">Aset Spesifik</label>
+                            <Dropdown align="right" width="full">
+                                <template #trigger>
+                                    <button type="button" class="appearance-none h-[38px] bg-ghost border border-ghost-hover hover:border-primary text-ink dark:text-ink-dark/90 text-[13px] rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2 text-left flex justify-between items-center transition-colors cursor-pointer outline-none w-full">
+                                        <span class="truncate">{{ filterForm.asset_code === 'all' ? 'Semua Aset' : filterForm.asset_code }}</span>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
+                                            <ChevronDown class="w-3.5 h-3.5" />
+                                        </div>
+                                    </button>
+                                </template>
+                                <template #content>
+                                    <div class="py-1 max-h-60 overflow-y-auto">
+                                        <button @click="filterForm.asset_code = 'all'" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': filterForm.asset_code === 'all' }">
+                                            Semua Aset
+                                        </button>
+                                        <button v-for="asset in currentAssets" :key="asset.code" @click="filterForm.asset_code = asset.code" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': filterForm.asset_code === asset.code }">
+                                            {{ asset.code }}
+                                        </button>
+                                    </div>
+                                </template>
+                            </Dropdown>
                         </div>
                     </div>
-
-                    <!-- Asset filter -->
-                    <div class="w-44">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">Aset Spesifik</label>
-                        <div class="relative">
-                            <select v-model="filterForm.asset_code"
-                                class="w-full appearance-none bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 py-2 pl-3 pr-8">
-                                <option value="all">Semua Aset</option>
-                                <option v-for="asset in currentAssets" :key="asset.code" :value="asset.code">{{ asset.code }}</option>
-                            </select>
-                            <ChevronDown class="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-                        </div>
-                    </div>
-
-                    <button @click="applyFilter"
-                        class="bg-gray-800 hover:bg-gray-900 text-white px-5 py-2 rounded-lg font-bold text-sm transition shadow-sm flex items-center gap-2">
-                        <Check class="w-3.5 h-3.5" /> Terapkan
-                    </button>
                 </div>
             </Card>
 
-            <!-- ─── Data table ───────────────────────────────────────────────── -->
             <Card no-padding>
 
-                <!-- ══ P3K Tab ══════════════════════════════════════════════════ -->
                 <div v-if="activeTab === 'p3k'" class="overflow-x-auto w-full">
-                    <table class="w-full text-xs text-left text-gray-500 leading-tight border-collapse">
-                        <thead class="text-[11px] text-gray-700 uppercase bg-gray-100 border-b">
+                    <table class="w-full text-xs text-left text-ink-light leading-tight border-collapse">
+                        <thead class="text-[11px] text-ink dark:text-ink-dark/90 uppercase bg-ghost border-b">
                             <tr>
                                 <th class="px-2.5 py-2 w-10 text-center">No</th>
                                 <th class="px-2.5 py-2">Aset & Lokasi</th>
@@ -227,73 +291,67 @@ const repairConfig = {
                         </thead>
                         <tbody>
                             <tr v-for="(row, index) in reports.data" :key="row.id"
-                                class="border-b last:border-0 hover:bg-gray-50/70 transition-colors align-top"
-                                :class="row.event_type === 'usage' ? 'bg-amber-50/20' : ''">
+                                class="border-b last:border-0 hover:bg-ghost/70 transition-colors align-top"
+                                :class="row.event_type === 'usage' ? 'bg-warning/10/20' : ''">
 
-                                <!-- No -->
-                                <td class="px-2.5 py-2.5 text-center font-medium text-gray-400 text-[11px]">
+                                <td class="px-2.5 py-2.5 text-center font-medium text-ink-light text-[11px]">
                                     {{ (reports.current_page - 1) * reports.per_page + index + 1 }}
                                 </td>
 
-                                <!-- Aset + Lokasi -->
                                 <td class="px-2.5 py-2.5 min-w-[130px]">
-                                    <div class="font-bold text-gray-800 text-[12px]">{{ row.asset_code }}</div>
-                                    <div v-if="row.location && row.location !== '-'" class="text-[9px] text-gray-400 mt-0.5 leading-tight">
+                                    <div class="font-bold text-ink text-[12px]">{{ row.asset_code }}</div>
+                                    <div v-if="row.location && row.location !== '-'" class="text-[9px] text-ink-light mt-0.5 leading-tight">
                                         📍 {{ row.location }}
                                     </div>
-                                    <!-- Tipe badge kecil -->
+                                    
                                     <span :class="row.event_type === 'inspection'
                                             ? 'bg-violet-100 text-violet-600 border-violet-200'
-                                            : 'bg-amber-100 text-amber-600 border-amber-200'"
-                                        class="mt-1 inline-block px-1.5 py-px text-[9px] font-bold border rounded-sm uppercase tracking-wide">
+                                            : 'bg-warning/20 text-warning border-warning/30'"
+                                        class="mt-1 inline-block px-1.5 py-px text-[9px] font-bold border rounded-md uppercase tracking-wide">
                                         {{ row.event_type === 'inspection' ? 'Inspeksi' : 'Pemakaian' }}
                                     </span>
                                 </td>
 
-                                <!-- Pelapor -->
                                 <td class="px-2.5 py-2.5 min-w-[120px]">
-                                    <div class="font-semibold text-gray-700 text-[11px]">{{ row.reporter_name }}</div>
+                                    <div class="font-semibold text-ink dark:text-ink-dark/90 text-[11px]">{{ row.reporter_name }}</div>
                                     <div v-if="row.reporter_dept && row.reporter_dept !== '-'"
-                                        class="text-[10px] text-indigo-500 font-medium mt-0.5">
+                                        class="text-[10px] text-primary font-medium mt-0.5">
                                         {{ row.reporter_dept }}
                                     </div>
-                                    <div class="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                                    <div class="text-[10px] text-ink-light mt-1 flex items-center gap-1">
                                         <Calendar class="w-2.5 h-2.5 flex-shrink-0" />
                                         {{ formatDate(row.record_date) }}
                                     </div>
                                 </td>
 
-                                <!-- Laporan / Detail -->
                                 <td class="px-2.5 py-2.5 min-w-[200px]">
-                                    <!-- Inspection detail -->
+                                    
                                     <template v-if="row.event_type === 'inspection'">
-                                        <span :class="row.insp_status === 'KRITIS' ? 'text-red-600 bg-red-50 border-red-200' : 'text-emerald-600 bg-emerald-50 border-emerald-200'"
+                                        <span :class="row.insp_status === 'KRITIS' ? 'text-danger bg-danger/10 border-danger/30' : 'text-success bg-success/10 border-success/30'"
                                             class="inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[10px] font-bold mb-1">
                                             {{ row.insp_status }}
                                         </span>
                                         <div v-if="row.insp_status === 'KRITIS' && row.details"
-                                            class="mt-1 p-1.5 bg-red-50 border-l-2 border-red-400 rounded-r text-[10px] text-red-700 leading-snug whitespace-pre-line">
+                                            class="mt-1 p-1.5 bg-danger/10 border-l-2 border-red-400 rounded-r text-[10px] text-danger leading-snug whitespace-pre-line">
                                             {{ row.details.replace('Kondisi: KRITIS\nRincian: ', '') }}
                                         </div>
-                                        <div v-else-if="row.insp_status === 'SAFE'" class="text-[10px] text-emerald-600 italic mt-0.5">
+                                        <div v-else-if="row.insp_status === 'SAFE'" class="text-[10px] text-success italic mt-0.5">
                                             ✓ Seluruh komponen standar normal.
                                         </div>
                                     </template>
 
-                                    <!-- Pemakaian: compact item list -->
                                     <template v-else>
                                         <ul class="space-y-0.5">
                                             <li v-for="(item, i) in row.items_used" :key="i"
-                                                class="flex items-baseline gap-1 text-[11px] text-gray-700">
-                                                <span class="text-gray-400 select-none leading-none">·</span>
+                                                class="flex items-baseline gap-1 text-[11px] text-ink dark:text-ink-dark/90">
+                                                <span class="text-ink-light select-none leading-none">·</span>
                                                 <span class="font-medium">{{ item.name }}</span>
-                                                <span class="text-gray-400">×{{ item.qty }}</span>
+                                                <span class="text-ink-light">×{{ item.qty }}</span>
                                             </li>
                                         </ul>
                                     </template>
                                 </td>
 
-                                <!-- Status -->
                                 <td class="px-2.5 py-2.5 text-center">
                                     <span :class="p3kStatusConfig[row.status]?.bg"
                                         class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap">
@@ -306,65 +364,59 @@ const repairConfig = {
                     </table>
                 </div>
 
-                <!-- ══ APAR Tab ═════════════════════════════════════════════════ -->
                 <div v-else-if="activeTab === 'apar'" class="overflow-x-auto w-full">
-                    <table class="w-full text-xs text-left text-gray-500 leading-tight border-collapse">
-                        <thead class="text-[11px] text-gray-700 uppercase bg-gray-100 border-b">
+                    <table class="w-full text-xs text-left text-ink-light leading-tight border-collapse">
+                        <thead class="text-[11px] text-ink dark:text-ink-dark/90 uppercase bg-ghost border-b">
                             <tr>
                                 <th class="px-2.5 py-2 w-10 text-center">No</th>
                                 <th class="px-2.5 py-2">Kode Aset</th>
                                 <th class="px-2.5 py-2">Periode</th>
                                 <th class="px-2.5 py-2">Laporan PIC</th>
-                                <th class="px-2.5 py-2 bg-indigo-50 border-l border-indigo-100 text-center">Status Validasi</th>
-                                <th class="px-2.5 py-2 bg-indigo-50 text-center">Status Perbaikan</th>
-                                <th class="px-2.5 py-2 bg-indigo-50">Validator K3</th>
+                                <th class="px-2.5 py-2 bg-primary/10 border-l border-primary/20 text-center">Status Validasi</th>
+                                <th class="px-2.5 py-2 bg-primary/10 text-center">Status Perbaikan</th>
+                                <th class="px-2.5 py-2 bg-primary/10">Validator K3</th>
                             </tr>
                         </thead>
                         <tbody v-for="(k3Report, index) in reports.data" :key="k3Report.id"
-                            class="border-b last:border-0 hover:bg-gray-50 transition-colors">
+                            class="border-b last:border-0 hover:bg-ghost transition-colors">
                             <tr v-for="(picReport, picIndex) in k3Report.pic_reports" :key="picReport.id">
 
-                                <!-- No (rowspan) -->
                                 <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length"
-                                    class="px-2.5 py-3 font-medium text-gray-900 text-center border-r align-top">
+                                    class="px-2.5 py-3 font-medium text-ink text-center border-r align-top">
                                     {{ (reports.current_page - 1) * reports.per_page + index + 1 }}
                                 </td>
 
-                                <!-- Kode Aset (rowspan) -->
                                 <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length"
-                                    class="px-2.5 py-3 font-bold text-gray-800 border-r align-top">
+                                    class="px-2.5 py-3 font-bold text-ink border-r align-top">
                                     {{ k3Report.asset_code }}
                                 </td>
 
-                                <!-- Periode (rowspan) -->
                                 <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length"
                                     class="px-2.5 py-3 border-r align-middle">
-                                    <span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
+                                    <span class="inline-flex items-center gap-1 bg-primary/10 text-primary border border-primary rounded-full px-2 py-0.5 text-[10px] font-bold whitespace-nowrap">
                                         📅 {{ k3Report.periode_pemeriksaan }}
                                     </span>
                                 </td>
 
-                                <!-- Laporan PIC -->
                                 <td class="px-2.5 py-3 border-r align-top min-w-[160px]">
-                                    <div v-if="picReport.actor === '-'" class="text-gray-400 italic text-[11px]">Belum ada laporan</div>
+                                    <div v-if="picReport.actor === '-'" class="text-ink-light italic text-[11px]">Belum ada laporan</div>
                                     <template v-else>
                                         <div class="flex items-center gap-1.5 mb-0.5">
-                                            <span :class="{'text-red-600': picReport.status === 'KRITIS', 'text-emerald-600': picReport.status === 'SAFE', 'text-gray-400': picReport.status === '-'}"
+                                            <span :class="{'text-danger': picReport.status === 'KRITIS', 'text-success': picReport.status === 'SAFE', 'text-ink-light': picReport.status === '-'}"
                                                 class="font-bold text-[11px]">{{ picReport.status }}</span>
                                         </div>
-                                        <div class="text-[10px] text-gray-600 font-medium">{{ picReport.actor }}</div>
-                                        <div v-if="picReport.status === 'KRITIS'" class="mt-1 p-1 bg-red-50 border-l-2 border-red-400 rounded-r text-[10px] text-red-700 leading-tight">
+                                        <div class="text-[10px] text-ink-light font-medium">{{ picReport.actor }}</div>
+                                        <div v-if="picReport.status === 'KRITIS'" class="mt-1 p-1 bg-danger/10 border-l-2 border-red-400 rounded-r text-[10px] text-danger leading-tight">
                                             {{ picReport.details?.replace('Kondisi: KRITIS\nRincian: ', '') }}
                                         </div>
-                                        <div v-if="picReport.record_date" class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                        <div v-if="picReport.record_date" class="text-[10px] text-ink-light mt-0.5 flex items-center gap-1">
                                             <Calendar class="w-2.5 h-2.5" /> {{ formatDate(picReport.record_date) }}
                                         </div>
                                     </template>
                                 </td>
 
-                                <!-- Status Validasi (rowspan) -->
                                 <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length"
-                                    class="px-2.5 py-3 bg-indigo-50/40 border-r align-middle text-center">
+                                    class="px-2.5 py-3 bg-primary/10/40 border-r align-middle text-center">
                                     <span :class="validationConfig[k3Report.validation_status]?.bg"
                                         class="px-2.5 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1">
                                         <span>{{ validationConfig[k3Report.validation_status]?.icon }}</span>
@@ -372,20 +424,18 @@ const repairConfig = {
                                     </span>
                                 </td>
 
-                                <!-- Status Perbaikan (rowspan) -->
                                 <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length"
-                                    class="px-2.5 py-3 bg-indigo-50/40 border-r align-middle text-center">
+                                    class="px-2.5 py-3 bg-primary/10/40 border-r align-middle text-center">
                                     <span :class="repairConfig[k3Report.repair_status]?.bg"
                                         class="px-2.5 py-1 rounded-full text-[10px] font-bold border inline-flex items-center gap-1">
                                         {{ k3Report.repair_status }}
                                     </span>
                                 </td>
 
-                                <!-- Validator K3 (rowspan) -->
                                 <td v-if="picIndex === 0" :rowspan="k3Report.pic_reports.length"
-                                    class="px-2.5 py-3 bg-indigo-50/40 align-top">
+                                    class="px-2.5 py-3 bg-primary/10/40 align-top">
                                     <div class="font-semibold text-indigo-900 text-[11px]">{{ k3Report.actor_k3 }}</div>
-                                    <div v-if="k3Report.record_date_k3" class="text-[10px] text-gray-400 mt-0.5 flex items-center gap-1">
+                                    <div v-if="k3Report.record_date_k3" class="text-[10px] text-ink-light mt-0.5 flex items-center gap-1">
                                         <Calendar class="w-2.5 h-2.5" /> {{ formatDate(k3Report.record_date_k3) }}
                                     </div>
                                 </td>
@@ -394,15 +444,13 @@ const repairConfig = {
                     </table>
                 </div>
 
-                <!-- Empty state -->
-                <div v-if="reports.data.length === 0" class="p-12 text-center text-gray-400">
+                <div v-if="reports.data.length === 0" class="p-4 text-center text-ink-light">
                     <span class="text-4xl block mb-3">📭</span>
                     <p class="text-sm font-medium">Tidak ada data laporan pada filter ini.</p>
-                    <p class="text-xs mt-1 text-gray-400">Coba ubah tahun, bulan, atau aset yang dipilih.</p>
+                    <p class="text-xs mt-1 text-ink-light">Coba ubah tahun, bulan, atau aset yang dipilih.</p>
                 </div>
 
-                <!-- Pagination -->
-                <div v-if="reports.data.length > 0" class="p-4 border-t border-gray-100">
+                <div v-if="reports.data.length > 0" class="p-4 border-t border-ghost-hover">
                     <Pagination :links="reports.links" />
                 </div>
             </Card>

@@ -24,6 +24,7 @@ const props = defineProps({
     p3k_types: Array,
     rooms: Array,       
     filters: Object,
+    can: Object,
 });
 
 const search = ref(props.filters?.search || '');
@@ -92,6 +93,7 @@ const deleteP3k = (id, code) => {
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Ya, Hapus',
+        cancelButtonText: 'Batal',
         confirmButtonColor: '#ef4444',
         reverseButtons: true
     }).then((result) => {
@@ -104,12 +106,12 @@ const deleteP3k = (id, code) => {
 };
 
 const columns = [
-    { label: 'No', key: 'no', class: 'w-12 text-center' },
-    { label: 'Kode P3K', key: 'code', class: 'font-bold' },
-    { label: 'Tipe', key: 'type' },
-    { label: 'Lokasi', key: 'location' },
-    { label: 'Status', key: 'status', class: 'w-32' },
-    { label: '', key: 'action', class: 'text-right' },
+    { label: 'No', key: 'no', class: 'w-10 sm:w-12 text-center' },
+    { label: 'Kode P3K', key: 'code', class: 'font-bold min-w-[120px]' },
+    { label: 'Tipe', key: 'type', class: 'min-w-[100px]' },
+    { label: 'Lokasi', key: 'location', class: 'min-w-[150px]' },
+    { label: 'Status', key: 'status', class: 'min-w-[100px]' },
+    ...(props.can?.manage ? [{ label: 'Aksi', key: 'action', class: 'w-24 text-center' }] : []),
 ];
 </script>
 
@@ -119,12 +121,12 @@ const columns = [
     <MainLayout>
         <template #header-title>
             <div class="flex flex-col items-start w-full">
-                
-                <div class="flex items-center gap-4 mb-4 px-4"> <Link :href="route('dashboard')" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                        <ChevronLeft class="w-5 h-5 text-black" />
+                <div class="flex items-center gap-4 mb-4 px-4"> 
+                    <Link :href="route('dashboard')" class="p-2 -ml-2 hover:bg-ghost rounded-full transition-colors">
+                        <ChevronLeft class="w-5 h-5 text-ink" />
                     </Link>
                     <div>
-                        <h2 class="font-bold text-lg text-gray-800 leading-tight">
+                        <h2 class="font-bold text-lg text-ink leading-tight">
                              {{ route().current('apars.*') ? 'Data APAR' : (route().current('hydrants.*') ? 'Data Hydrant' : 'Data P3K') }}
                         </h2>
                     </div>
@@ -133,11 +135,11 @@ const columns = [
         </template>
 
         <template #header-nav>
-            <nav class="flex items-center gap-6 px-4"> 
+            <nav class="flex items-center gap-4 px-4 overflow-x-auto custom-scrollbar pb-1"> 
                 <NavLink 
                     :href="route('apars.index')" 
                     :active="route().current('apars.index')"
-                    class="text-xs font-bold transition-all duration-200"
+                    class="text-xs font-bold transition-all duration-200 whitespace-nowrap"
                 >
                     APAR
                 </NavLink>
@@ -145,7 +147,7 @@ const columns = [
                 <NavLink 
                     :href="route('hydrants.index')" 
                     :active="route().current('hydrants.index')"
-                    class="text-xs font-bold transition-all duration-200"
+                    class="text-xs font-bold transition-all duration-200 whitespace-nowrap"
                 >
                     Hydrant
                 </NavLink>
@@ -153,38 +155,52 @@ const columns = [
                 <NavLink 
                     :href="route('p3ks.index')" 
                     :active="route().current('p3ks.index')"
-                    class="text-xs font-bold transition-all duration-200"
+                    class="text-xs font-bold transition-all duration-200 whitespace-nowrap"
                 >
                     P3K
                 </NavLink>
             </nav>
         </template>
 
-        <Card no-padding>
-            <template #header>
-                <div class="flex justify-between items-center gap-4">
-                    <SearchInput v-model="search" placeholder="Cari kode atau tipe P3K..." class="w-64" />
-                    <button @click="openCreateModal" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md flex items-center gap-2 transition-colors">
-                        <Plus class="w-4 h-4" /> Tambah P3K
-                    </button>
-                </div>
-            </template>
+        <div class="space-y-4">
+            
+            <Card no-padding class="p-4 overflow-visible" overflow-visible>
+                <div class="flex flex-row justify-between items-center gap-3 sm:gap-4">
+                    
+                    <div class="flex-1 sm:w-1/3 sm:flex-none min-w-[200px]">
+                        <SearchInput v-model="search" placeholder="Cari kode atau tipe P3K..." />
+                    </div>
 
-            <DataTable :items="p3ks" :columns="columns">
+                    <button 
+                        v-if="can?.manage" 
+                        @click="openCreateModal" 
+                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-[38px] px-0 sm:w-auto sm:px-4 shrink-0"
+                    >
+                        <Plus class="w-5 h-5 sm:w-4 sm:h-4" /> 
+                        <span class="hidden sm:inline">Tambah P3K</span>
+                    </button>
+                    
+                </div>
+            </Card>
+
+            <Card no-padding className="h-full">
+                <DataTable :items="p3ks" :columns="columns">
                 <template #cell-no="{ index }">
-                    {{ (p3ks.current_page - 1) * p3ks.per_page + index + 1 }}
+                    <span class="text-ink-light font-mono text-[10px]">
+                        {{ (p3ks.current_page - 1) * p3ks.per_page + index + 1 }}
+                    </span>
                 </template>
 
                 <template #cell-type="{ item }">
-                    <span class="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                    <span class="px-2 py-1 rounded-md bg-success/10 text-success text-[10px] font-bold border border-emerald-100 whitespace-nowrap">
                         {{ item.type?.name }}
                     </span>
                 </template>
 
                 <template #cell-location="{ item }">
                     <div class="text-[11px]">
-                        <p class="font-bold text-gray-700">{{ item.room?.name || 'Belum diatur' }}</p>
-                        <p class="text-gray-400">
+                        <p class="font-bold text-ink dark:text-ink-dark/90 line-clamp-1">{{ item.room?.name || 'Belum diatur' }}</p>
+                        <p class="text-ink-light line-clamp-1">
                             {{ item.room?.floor?.building?.name }} - {{ item.room?.floor?.name }}
                         </p>
                     </div>
@@ -192,18 +208,18 @@ const columns = [
 
                 <template #cell-status="{ item }">
                     <div :class="[
-                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border',
-                        item.status === 'safe' ? 'bg-green-50 text-green-600 border-green-100' : 
-                        item.status === 'warning' ? 'bg-orange-50 text-orange-600 border-orange-100' : 
-                        'bg-red-50 text-red-600 border-red-100'
+                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border whitespace-nowrap',
+                        item.status === 'safe' ? 'bg-success/10 text-success border-green-100' : 
+                        item.status === 'warning' ? 'bg-warning/10 text-warning border-orange-100' : 
+                        'bg-danger/10 text-danger border-red-100'
                     ]">
-                        <span class="w-1.5 h-1.5 rounded-full fill-current" :class="item.status === 'safe' ? 'bg-green-500' : 'bg-red-500'"></span>
+                        <span class="w-1.5 h-1.5 rounded-full fill-current shrink-0" :class="item.status === 'safe' ? 'bg-success' : item.status === 'warning' ? 'bg-warning' : 'bg-danger'"></span>
                         {{ item.status }}
                     </div>
                 </template>
 
                 <template #cell-action="{ item }">
-                    <div class="flex justify-end gap-1">
+                    <div v-if="can?.manage" class="flex justify-end gap-0.5 sm:gap-1">
                         <div v-if="item.room?.floor_id">
                             <Link 
                                 :href="route('assets.mapping', { 
@@ -211,20 +227,20 @@ const columns = [
                                     target_id: item.id, 
                                     target_type: 'p3k' 
                                 })"
-                                class="p-2 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-md flex items-center justify-center transition-colors"
+                                class="p-1.5 sm:p-2 text-primary hover:text-primary hover:bg-primary/10 rounded-md flex items-center justify-center transition-colors"
                                 title="Atur Posisi di Peta"
                             >
                                 <MapPin class="w-4 h-4" />
                             </Link>
                         </div>
-                        <div v-else class="p-2 text-gray-300 cursor-not-allowed" title="Lokasi belum diatur">
+                        <div v-else class="p-1.5 sm:p-2 text-gray-300 cursor-not-allowed flex items-center justify-center" title="Lokasi belum diatur">
                             <MapPin class="w-4 h-4" />
                         </div>
 
-                        <button @click="openEditModal(item)" class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md">
+                        <button @click="openEditModal(item)" class="p-1.5 sm:p-2 text-ink-light hover:text-primary hover:bg-primary/10 rounded-md transition-colors">
                             <Pencil class="w-4 h-4" />
                         </button>
-                        <button @click="deleteP3k(item.id, item.code)" class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md">
+                        <button @click="deleteP3k(item.id, item.code)" class="p-1.5 sm:p-2 text-ink-light hover:text-danger hover:bg-danger/10 rounded-md transition-colors">
                             <Trash2 class="w-4 h-4" />
                         </button>
                     </div>
@@ -232,57 +248,73 @@ const columns = [
             </DataTable>
         </Card>
 
-        <Modal :show="showModal" @close="showModal = false" max-width="md">
-            <div class="p-6">
-                <h2 class="text-lg font-bold mb-6 flex items-center gap-2">
-                    <BriefcaseMedical class="w-5 h-5 text-emerald-500" />
-                    {{ isEditing ? 'Edit Data P3K' : 'Tambah P3K Baru' }}
-                </h2>
+        </div>
 
-                <form @submit.prevent="submit" class="space-y-4">
+        <Modal :show="showModal" @close="showModal = false" max-width="md">
+            <div class="p-4 sm:p-5">
+                <div class="flex justify-between items-center mb-5 sm:mb-6 border-b pb-4">
+                    <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 text-ink">
+                        <BriefcaseMedical class="w-5 h-5 text-success" />
+                        {{ isEditing ? 'Edit Data P3K' : 'Tambah P3K Baru' }}
+                    </h2>
+                    <button @click="showModal = false" class="p-1.5 rounded-full hover:bg-ghost transition-colors">
+                        <X class="w-4 h-4 sm:w-5 sm:h-5 text-ink-light" />
+                    </button>
+                </div>
+
+                <form @submit.prevent="submit" class="space-y-4 sm:space-y-5">
                     <div>
-                        <InputLabel value="Kode P3K" />
-                        <TextInput v-model="form.code" class="w-full" placeholder="Misal: P3K-L1-001" />
-                        <InputError :message="form.errors.code" />
+                        <InputLabel value="Kode P3K" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
+                        <TextInput v-model="form.code" class="w-full text-sm py-2" placeholder="Misal: P3K-L1-001" required />
+                        <InputError :message="form.errors.code" class="mt-1" />
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
                         <div>
-                            <InputLabel value="Tipe Kotak" />
-                            <select v-model="form.p3k_type_id" class="w-full border-gray-300 rounded-lg text-sm focus:ring-indigo-500">
+                            <InputLabel value="Tipe Kotak" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
+                            <select v-model="form.p3k_type_id" class="w-full border-ghost-hover rounded-md text-sm py-2 px-3 focus:border-primary focus:ring-primary bg-surface dark:bg-page-dark text-ink dark:text-ink-dark/90" required>
                                 <option value="" disabled>Pilih Tipe</option>
                                 <option v-for="type in p3k_types" :key="type.id" :value="type.id">{{ type.name }}</option>
                             </select>
-                            <InputError :message="form.errors.p3k_type_id" />
+                            <InputError :message="form.errors.p3k_type_id" class="mt-1" />
                         </div>
                         <div>
-                            <InputLabel value="Status" />
-                            <select v-model="form.status" class="w-full border-gray-300 rounded-lg text-sm focus:ring-indigo-500">
+                            <InputLabel value="Status" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
+                            <select v-model="form.status" class="w-full border-ghost-hover rounded-md text-sm py-2 px-3 focus:border-primary focus:ring-primary bg-surface dark:bg-page-dark text-ink dark:text-ink-dark/90" required>
                                 <option value="safe">Safe</option>
                                 <option value="warning">Warning</option>
                                 <option value="critical">Critical</option>
                             </select>
-                            <InputError :message="form.errors.status" />
+                            <InputError :message="form.errors.status" class="mt-1" />
                         </div>
                     </div>
 
                     <div>
-                        <InputLabel value="Lokasi Ruangan" />
-                        <select v-model="form.room_id" class="w-full border-gray-300 rounded-lg text-sm focus:ring-indigo-500">
-                            <option value="" disabled>Pilih Ruangan</option>
+                        <InputLabel value="Lokasi Ruangan" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
+                        <select v-model="form.room_id" class="w-full border-ghost-hover rounded-md text-sm py-2 px-3 focus:border-primary focus:ring-primary bg-surface dark:bg-page-dark text-ink dark:text-ink-dark/90">
+                            <option value="" disabled>Pilih Ruangan (Opsional)</option>
                             <option v-for="room in rooms" :key="room.id" :value="room.id">
                                 {{ room.floor?.building?.name }} - {{ room.name }}
                             </option>
                         </select>
-                        <InputError :message="form.errors.room_id" />
+                        <InputError :message="form.errors.room_id" class="mt-1" />
                     </div>
 
-                    <div class="flex justify-end gap-3 pt-4 border-t">
-                        <button type="button" @click="showModal = false" class="text-sm font-semibold text-gray-500 hover:text-gray-700">
+                    <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t mt-6">
+                        <button 
+                            type="button" 
+                            @click="showModal = false" 
+                            class="w-full sm:w-auto px-4 py-2 sm:py-2.5 text-sm font-semibold text-ink-light hover:text-ink transition-colors bg-ghost sm:bg-transparent rounded-md"
+                        >
                             Batal
                         </button>
-                        <PrimaryButton :disabled="form.processing">
-                            <Save class="w-4 h-4 mr-2" /> Simpan Data
+                        <PrimaryButton 
+                            class="w-full sm:w-auto justify-center bg-primary hover:bg-primary-hover shadow-md sm:shadow-lg shadow-indigo-200 py-2 sm:py-2.5"
+                            :class="{ 'opacity-25': form.processing }" 
+                            :disabled="form.processing"
+                        >
+                            <Save class="w-4 h-4 mr-2" />
+                            {{ isEditing ? 'Update P3K' : 'Simpan Data' }}
                         </PrimaryButton>
                     </div>
                 </form>

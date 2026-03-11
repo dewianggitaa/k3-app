@@ -5,7 +5,7 @@ import { debounce } from 'lodash';
 import Swal from 'sweetalert2'; 
 import { 
     Pencil, Trash2, Plus, MapPin, Hash, 
-    X, Save, Box, Palette, ChevronRight, Map 
+    X, Save, Box, Palette, ChevronRight, ChevronDown, Map 
 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -43,7 +43,6 @@ const selectedUserLabel = computed(() => {
 const selectUser = (userId) => {
     form.pic_user_id = userId;
 };
-
 
 const form = useForm({
     id: null,
@@ -148,13 +147,13 @@ const deleteRoom = (id, name) => {
 };
 
 const columns = [
-    { label: 'No', key: 'no', class: 'w-12 text-center' },
-    { label: 'Lokasi', key: 'location', class: 'w-40' },
-    { label: 'Kode Ruangan', key: 'code', class: 'font-medium'},
-    { label: 'Nama Ruangan', key: 'name', class: 'font-medium' },
-    { label: 'PIC Area', key: 'pic', class: 'font-medium' },
+    { label: 'No', key: 'no', class: 'w-10 sm:w-12 text-center' },
+    { label: 'Lokasi', key: 'location', class: 'w-32 sm:w-40 min-w-[120px]' },
+    { label: 'Kode Ruangan', key: 'code', class: 'font-medium min-w-[110px]'},
+    { label: 'Nama Ruangan', key: 'name', class: 'font-medium min-w-[120px]' },
+    { label: 'PIC Area', key: 'pic', class: 'font-medium min-w-[100px]' },
     { label: 'Status Mapping', key: 'coordinates', class: 'w-48 text-center' },
-    ...(props.can?.manage ? [{ label: '', key: 'action', class: 'w-24 text-right' }] : []),
+    ...(props.can?.manage ? [{ label: 'Aksi', key: 'action', class: 'w-20 sm:w-24 text-center' }] : []),
 ];
 </script>
 
@@ -164,8 +163,7 @@ const columns = [
     <MainLayout>
         <template #header-title>
             <div class="flex items-center justify-between w-full">
-                
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-4 px-4">
                     <div>
                         <h2 class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">Master Data Ruangan</h2>
                     </div>
@@ -173,152 +171,175 @@ const columns = [
             </div>
         </template>
 
-        <Card no-padding className="h-full">
-            <template #header>
-                <div class="flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
-                    <div class="w-full sm:w-64">
+        <div class="space-y-4">
+            
+            <Card no-padding class="p-4 overflow-visible" overflow-visible>
+                <div class="flex flex-row justify-between items-center gap-3 sm:gap-4">
+                    
+                    <div class="flex-1 sm:w-1/3 sm:flex-none min-w-[200px]">
                         <SearchInput v-model="search" placeholder="Cari ruangan, lantai, atau gedung..." />
                     </div>
 
                     <button 
                         v-if="can?.manage"
                         @click="openCreateModal"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md shadow-sm flex items-center gap-2 transition-all"
+                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-[38px] px-0 sm:w-auto sm:px-4 shrink-0"
                     >
-                        <Plus class="w-4 h-4" />
-                        <span>Tambah Ruangan</span>
+                        <Plus class="w-5 h-5 sm:w-4 sm:h-4" />
+                        <span class="hidden sm:inline">Tambah Ruangan</span>
                     </button>
+                    
                 </div>
-            </template>
+            </Card>
 
-            <DataTable :items="rooms" :columns="columns">
-                <template #cell-no="{ index }">
-                    <span class="text-gray-400 font-mono text-[10px]">
-                        {{ (rooms.current_page - 1) * rooms.per_page + index + 1 }}
-                    </span>
-                </template>
-
-                <template #cell-location="{ item }">
-                    <div class="flex flex-col">
-                        <span class="text-[11px] font-bold text-indigo-600 uppercase tracking-tighter">
-                            {{ item.floor?.building?.name || 'N/A' }}
+            <Card no-padding className="h-full">
+                <DataTable :items="rooms" :columns="columns">
+                    <template #cell-no="{ index }">
+                        <span class="text-ink-light font-mono text-[10px]">
+                            {{ (rooms.current_page - 1) * rooms.per_page + index + 1 }}
                         </span>
-                        <span class="text-[10px] text-gray-500 flex items-center gap-1">
-                            <MapPin class="w-2.5 h-2.5" /> {{ item.floor?.name || 'N/A' }}
-                        </span>
-                    </div>
-                </template>
+                    </template>
 
-                <template #cell-code="{ item }">
-                    <div class="flex items-center gap-2">
-                        <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                        <span class="text-sm text-gray-700">{{ item.code }}</span>
-                    </div>
-                </template>
-                
-                <template #cell-name="{ item }">
-                    <div class="flex items-center gap-2">
-                        <span class="text-sm text-gray-700">{{ item.name }}</span>
-                    </div>
-                </template>
+                    <template #cell-location="{ item }">
+                        <div class="flex flex-col">
+                            <span class="text-[11px] font-bold text-primary uppercase tracking-tighter line-clamp-1">
+                                {{ item.floor?.building?.name || 'N/A' }}
+                            </span>
+                            <span class="text-[10px] text-ink-light flex items-center gap-1">
+                                <MapPin class="w-2.5 h-2.5 shrink-0" /> <span class="line-clamp-1">{{ item.floor?.name || 'N/A' }}</span>
+                            </span>
+                        </div>
+                    </template>
 
-                <template #cell-pic="{ item }">
-                    <div class="flex items-center gap-2">
-                        {{ item.pic?.name || '-' }}
-                    </div>
-                </template>
+                    <template #cell-code="{ item }">
+                        <div class="flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full bg-primary shrink-0"></div>
+                            <span class="text-sm text-ink dark:text-ink-dark/90">{{ item.code }}</span>
+                        </div>
+                    </template>
+                    
+                    <template #cell-name="{ item }">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-ink dark:text-ink-dark/90 line-clamp-2">{{ item.name }}</span>
+                        </div>
+                    </template>
 
+                    <template #cell-pic="{ item }">
+                        <div class="flex items-center gap-2 text-sm line-clamp-2">
+                            {{ item.pic?.name || '-' }}
+                        </div>
+                    </template>
 
-                <template #cell-coordinates="{ item }">
-                    <div class="flex justify-center">
-                        <Link 
-                            v-if="item.coordinates" 
-                            :href="route('floors.mapping', { id: item.floor_id, highlight_room: item.id })"
-                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 uppercase text-[10px] font-bold transition-all group"
-                            title="Lihat di Denah"
-                        >
-                            <span>SUDAH DIMAPPING</span>
-                            <Map class="w-3 h-3 group-hover:scale-110 transition-transform" />
-                        </Link>
-                        
-                        <Link 
-                            v-else 
-                            :href="route('floors.mapping', { id: item.floor_id, highlight_room: item.id })"
-                            class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 border border-gray-200 uppercase text-[10px] font-bold transition-all group"
-                            title="Mapping Ruangan Ini"
-                        >
-                            <span>BELUM ADA AREA</span>
-                            <Plus class="w-3 h-3 group-hover:scale-110 transition-transform" />
-                        </Link>
-                    </div>
-                </template>
+                    <template #cell-coordinates="{ item }">
+                        <div class="flex justify-center">
+                            <Link 
+                                v-if="item.coordinates" 
+                                :href="route('floors.mapping', { id: item.floor_id, highlight_room: item.id })"
+                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-success/10 hover:bg-success/20 text-success border border-success/30 uppercase text-[10px] font-bold transition-all group"
+                                title="Lihat di Denah"
+                            >
+                                <span class="whitespace-nowrap">SUDAH DIMAPPING</span>
+                                <Map class="w-3 h-3 group-hover:scale-110 transition-transform shrink-0" />
+                            </Link>
+                            
+                            <Link 
+                                v-else 
+                                :href="route('floors.mapping', { id: item.floor_id, highlight_room: item.id })"
+                                class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-ghost hover:bg-ghost text-ink-light hover:text-ink-light border border-ghost-hover uppercase text-[10px] font-bold transition-all group"
+                                title="Mapping Ruangan Ini"
+                            >
+                                <span class="whitespace-nowrap">BELUM ADA AREA</span>
+                                <Plus class="w-3 h-3 group-hover:scale-110 transition-transform shrink-0" />
+                            </Link>
+                        </div>
+                    </template>
 
-                <template #cell-action="{ item }">
-                    <div v-if="can?.manage" class="flex justify-end items-center gap-1">
-                        <button 
-                            @click="openEditModal(item)"
-                            class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                        >
-                            <Pencil class="w-4 h-4" />
-                        </button>
-                        <button 
-                            @click="deleteRoom(item.id, item.name)"
-                            class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                        >
-                            <Trash2 class="w-4 h-4" />
-                        </button>
-                    </div>
-                </template>
-            </DataTable>
-        </Card>
+                    <template #cell-action="{ item }">
+                        <div v-if="can?.manage" class="flex justify-end items-center gap-0.5 sm:gap-1">
+                            <button 
+                                @click="openEditModal(item)"
+                                class="p-1.5 sm:p-2 text-ink-light hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                            >
+                                <Pencil class="w-4 h-4" />
+                            </button>
+                            <button 
+                                @click="deleteRoom(item.id, item.name)"
+                                class="p-1.5 sm:p-2 text-ink-light hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                            >
+                                <Trash2 class="w-4 h-4" />
+                            </button>
+                        </div>
+                    </template>
+                </DataTable>
+            </Card>
+
+        </div>
 
         <Modal :show="showModal" @close="closeModal" max-width="md">
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-6 border-b pb-4">
-                    <div class="flex items-center gap-2 text-indigo-600">
+            <div class="p-4 sm:p-5">
+                <div class="flex justify-between items-center mb-5 sm:mb-6 border-b pb-4">
+                    <div class="flex items-center gap-2 text-primary">
                         <Box class="w-5 h-5" />
-                        <h2 class="text-lg font-bold text-gray-900">
+                        <h2 class="text-base sm:text-lg font-bold text-ink">
                             {{ isEditing ? 'Edit Ruangan' : 'Tambah Ruangan' }}
                         </h2>
                     </div>
-                    <button @click="closeModal" class="p-1 rounded-full hover:bg-gray-100 transition-colors">
-                        <X class="w-5 h-5 text-gray-400" />
+                    <button @click="closeModal" class="p-1.5 rounded-full hover:bg-ghost transition-colors">
+                        <X class="w-4 h-4 sm:w-5 sm:h-5 text-ink-light" />
                     </button>
                 </div>
 
-                <form @submit.prevent="submit" class="space-y-5">
+                <form @submit.prevent="submit" class="space-y-4 sm:space-y-5">
                     <div>
-                        <InputLabel value="Pilih Lantai / Lokasi" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
-                        <select 
-                            v-model="form.floor_id"
-                            class="w-full border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm py-2.5"
-                        >
-                            <option value="" disabled>Pilih Lantai Gedung...</option>
-                            <option v-for="floor in floors" :key="floor.id" :value="floor.id">
-                                {{ floor.building?.name }} - {{ floor.name }}
-                            </option>
-                        </select>
+                        <InputLabel value="Pilih Lantai / Lokasi" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
+                        <Dropdown align="left" width="full" contentClasses="py-1 bg-surface max-h-60 overflow-y-auto">
+                            <template #trigger>
+                                <button type="button" class="appearance-none w-full px-3 py-2 sm:py-2.5 text-sm rounded-md border border-ghost dark:border-ghost-dark bg-page dark:bg-page-dark text-ink dark:text-ink-dark focus:ring-1 focus:ring-primary outline-none text-left flex justify-between items-center transition-colors">
+                                    <span class="truncate">
+                                        <template v-if="form.floor_id">
+                                            {{ floors.find(f => f.id === form.floor_id)?.building?.name }} - {{ floors.find(f => f.id === form.floor_id)?.name }}
+                                        </template>
+                                        <template v-else>
+                                            Pilih Lantai Gedung...
+                                        </template>
+                                    </span>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
+                                        <ChevronDown class="w-4 h-4" />
+                                    </div>
+                                </button>
+                            </template>
+                            <template #content>
+                                <div class="py-1 max-h-48 overflow-y-auto">
+                                    <button type="button" @click="form.floor_id = ''" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer text-ink-light">
+                                        Pilih Lantai Gedung...
+                                    </button>
+                                    <button type="button" v-for="floor in floors" :key="floor.id" @click="form.floor_id = floor.id" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': form.floor_id === floor.id }">
+                                        {{ floor.building?.name }} - {{ floor.name }}
+                                    </button>
+                                </div>
+                            </template>
+                        </Dropdown>
                         <InputError :message="form.errors.floor_id" class="mt-1" />
                     </div>
 
                     <div>
-                        <InputLabel value="Kode Ruangan" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
+                        <InputLabel value="Kode Ruangan" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
                         <TextInput 
                             v-model="form.code"
                             type="text"
-                            class="w-full"
+                            class="w-full text-sm"
                             placeholder="Contoh: 1511000"
                             required
                         />
-                        <InputError :message="form.errors.name" class="mt-1" />
+                        <InputError :message="form.errors.code" class="mt-1" />
                     </div>
 
                     <div>
-                        <InputLabel value="Nama Ruangan" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
+                        <InputLabel value="Nama Ruangan" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
                         <TextInput 
                             v-model="form.name"
                             type="text"
-                            class="w-full"
+                            class="w-full text-sm"
                             placeholder="Contoh: Corridor A"
                             required
                         />
@@ -326,21 +347,21 @@ const columns = [
                     </div>
 
                     <div>
-                        <InputLabel value="PIC Area (Penanggung Jawab)" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
+                        <InputLabel value="PIC Area (Penanggung Jawab)" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
                         
-                        <Dropdown align="left" width="full" contentClasses="py-1 bg-white max-h-60 overflow-y-auto">
+                        <Dropdown align="left" width="full" contentClasses="py-1 bg-surface max-h-60 overflow-y-auto">
                             
                             <template #trigger>
                                 <button
                                     type="button"
-                                    class="w-full bg-white border border-gray-300 rounded-lg shadow-sm px-4 py-2.5 text-start text-sm flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition ease-in-out duration-150"
-                                    :class="!form.pic_user_id ? 'text-gray-500' : 'text-gray-900'"
+                                    class="w-full bg-surface border border-ghost-hover rounded-md shadow-sm px-3 py-2 sm:py-2.5 text-start text-sm flex justify-between items-center focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition ease-in-out duration-150"
+                                    :class="!form.pic_user_id ? 'text-ink-light' : 'text-ink'"
                                 >
                                     <span class="truncate block mr-2">
                                         {{ selectedUserLabel }}
                                     </span>
                                     
-                                    <svg class="h-4 w-4 text-gray-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <svg class="h-4 w-4 text-ink-light flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                         <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
                                     </svg>
                                 </button>
@@ -350,8 +371,8 @@ const columns = [
                                 <button
                                     type="button"
                                     @click="selectUser(null)"
-                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out"
-                                    :class="{ 'bg-gray-50 font-bold': form.pic_user_id === null }"
+                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-ink dark:text-ink-dark/90 hover:bg-ghost focus:outline-none focus:bg-ghost transition duration-150 ease-in-out"
+                                    :class="{ 'bg-ghost font-bold': form.pic_user_id === null }"
                                 >
                                     -- Tidak Ada / Belum Ditentukan --
                                 </button>
@@ -361,33 +382,31 @@ const columns = [
                                     :key="user.id"
                                     type="button"
                                     @click="selectUser(user.id)"
-                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 transition duration-150 ease-in-out border-t border-gray-50"
-                                    :class="{ 'bg-indigo-50 text-indigo-700 font-bold': form.pic_user_id === user.id }"
+                                    class="block w-full px-4 py-2 text-start text-sm leading-5 text-ink dark:text-ink-dark/90 hover:bg-ghost focus:outline-none focus:bg-ghost transition duration-150 ease-in-out border-t border-gray-50"
+                                    :class="{ 'bg-primary/10 text-primary font-bold': form.pic_user_id === user.id }"
                                 >
                                     {{ user.name }} 
-                                    <span class="text-xs text-gray-400 ml-1">({{ user.position?.name || 'Staff' }})</span>
+                                    <span class="text-xs text-ink-light ml-1">({{ user.position?.name || 'Staff' }})</span>
                                 </button>
                             </template>
                         </Dropdown>
 
-                        <p class="text-[10px] text-gray-500 mt-1">
+                        <p class="text-[10px] text-ink-light mt-1">
                             *Orang ini akan menerima notifikasi tugas otomatis untuk aset di ruangan ini.
                         </p>
                         <InputError :message="form.errors.pic_user_id" class="mt-1" />
                     </div>
 
-
-
-                    <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t mt-6">
                         <button 
                             type="button" 
                             @click="closeModal" 
-                            class="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 transition-colors"
+                            class="w-full sm:w-auto px-4 py-2 sm:py-2.5 text-sm font-semibold text-ink-light hover:text-ink transition-colors bg-ghost sm:bg-transparent rounded-md"
                         >
                             Batal
                         </button>
                         <PrimaryButton 
-                            class="bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200"
+                            class="w-full sm:w-auto justify-center bg-primary hover:bg-primary-hover shadow-md sm:shadow-lg shadow-indigo-200 py-2 sm:py-2.5"
                             :class="{ 'opacity-25': form.processing }" 
                             :disabled="form.processing"
                         >

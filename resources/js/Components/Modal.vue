@@ -14,6 +14,10 @@ const props = defineProps({
         type: Boolean,
         default: true,
     },
+    overflowVisible: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits(['close']);
@@ -80,7 +84,7 @@ const maxWidthClass = computed(() => {
         ref="dialog"
     >
         <div
-            class="fixed inset-0 z-50 overflow-y-auto px-4 py-6 sm:px-0"
+            class="fixed inset-0 z-50 overflow-y-auto px-4 py-4 sm:px-0"
             scroll-region
         >
             <Transition
@@ -112,8 +116,8 @@ const maxWidthClass = computed(() => {
             >
                 <div
                     v-show="show"
-                    class="mb-6 transform overflow-hidden rounded-lg bg-white shadow-xl transition-all sm:mx-auto sm:w-full"
-                    :class="maxWidthClass"
+                    class="mb-6 transform rounded-md bg-surface dark:bg-surface-dark border border-transparent dark:border-ghost-dark shadow-xl transition-all sm:mx-auto sm:w-full"
+                    :class="[maxWidthClass, overflowVisible ? 'overflow-visible' : 'overflow-hidden']"
                 >
                     <slot v-if="showSlot" />
                 </div>

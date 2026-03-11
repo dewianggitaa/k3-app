@@ -26,7 +26,7 @@ class ChecklistParameterController extends Controller
             ->orderBy('order_index')
             ->get();
 
-        return Inertia::render('ChecklistParameters/Index', [
+        return Inertia::render('MasterData/ChecklistParameters/Index', [
             'parameters'  => $parameters,
             'assetTypes'  => $this->assetTypes,
             'currentType' => $selectedType,

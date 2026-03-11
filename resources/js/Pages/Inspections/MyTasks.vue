@@ -55,10 +55,10 @@ const claimTask = (id) => {
 
 const getStatusBadge = (status) => {
     switch(status) {
-        case 'completed': return 'bg-green-100 text-green-700 border-green-200';
-        case 'issue': return 'bg-red-100 text-red-700 border-red-200';
-        case 'overdue': return 'bg-orange-100 text-orange-700 border-orange-200';
-        default: return 'bg-gray-100 text-gray-600 border-gray-200';
+        case 'completed': return 'bg-success/20 text-success border-success/30';
+        case 'issue': return 'bg-danger/20 text-danger border-danger/30';
+        case 'overdue': return 'bg-warning/20 text-warning border-warning/30';
+        default: return 'bg-ghost text-ink-light border-ghost-hover';
     }
 };
 
@@ -81,12 +81,6 @@ const getStatusLabel = (status) => {
                 <h2 class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">
                     {{ pageTitle }}
                 </h2>
-                <span v-if="pageType === 'open'" class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">
-                    General Pool
-                </span>
-                <span v-else class="font-bold text-lg text-ink dark:text-ink-dark leading-tight">
-                    Personal
-                </span>
             </div>
         </template>
 
@@ -100,31 +94,31 @@ const getStatusLabel = (status) => {
 
                     <div class="flex flex-wrap gap-2 w-full md:w-auto">
                         <div class="relative">
-                            <select v-model="buildingFilter" class="appearance-none bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-3 pr-8 py-2">
+                            <select v-model="buildingFilter" class="appearance-none bg-ghost border border-ghost-hover text-ink dark:text-ink-dark/90 text-sm rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2">
                                 <option value="">Semua Gedung</option>
                                 <option v-for="b in buildings" :key="b.id" :value="b.id">{{ b.name }}</option>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
                                 <Filter class="w-4 h-4" />
                             </div>
                         </div>
 
                         <div v-if="pageType === 'assigned'" class="relative">
-                            <select v-model="statusFilter" class="appearance-none bg-gray-50 border border-gray-300 text-gray-700 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-3 pr-8 py-2">
+                            <select v-model="statusFilter" class="appearance-none bg-ghost border border-ghost-hover text-ink dark:text-ink-dark/90 text-sm rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2">
                                 <option value="">Semua Status</option>
                                 <option value="pending">Pending</option>
                                 <option value="completed">Selesai</option>
                                 <option value="issue">Issue</option>
                                 <option value="overdue">Overdue</option>
                             </select>
-                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
                                 <AlertCircle class="w-4 h-4" />
                             </div>
                         </div>
 
                         <button v-if="search || statusFilter || buildingFilter" 
                             @click="() => { search = ''; statusFilter = ''; buildingFilter = ''; }"
-                            class="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            class="p-2 text-ink-light hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
                             title="Reset Filter">
                             <RefreshCw class="w-4 h-4" />
                         </button>
@@ -155,18 +149,18 @@ const getStatusLabel = (status) => {
                                 <div class="flex justify-between items-start gap-4">
                                     <div>
                                         <div class="flex items-center gap-2 mb-1">
-                                            <span class="font-bold text-gray-800 text-sm">
+                                            <span class="font-bold text-ink text-sm">
                                                 {{ item.assetable_type?.split('\\').pop() }} 
                                             </span>
-                                            <span class="bg-indigo-50 text-indigo-600 text-[10px] px-1.5 py-0.5 rounded border border-indigo-100 font-mono">
+                                            <span class="bg-primary/10 text-primary text-[10px] px-1.5 py-0.5 rounded border border-primary/20 font-mono">
                                                 {{ item.assetable?.code || '-' }}
                                             </span>
                                         </div>
                                         
-                                        <div class="flex items-start gap-1.5 text-xs text-gray-500 leading-tight">
-                                            <MapPin class="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" />
+                                        <div class="flex items-start gap-1.5 text-xs text-ink-light leading-tight">
+                                            <MapPin class="w-3.5 h-3.5 mt-0.5 shrink-0 text-ink-light" />
                                             <div v-if="item.assetable.room">
-                                                <span class="font-medium text-gray-700">
+                                                <span class="font-medium text-ink dark:text-ink-dark/90">
                                                     {{ item.assetable.room.floor?.building?.name || '?' }}
                                                 </span>
                                                 <span class="mx-1 text-gray-300">|</span>
@@ -174,7 +168,7 @@ const getStatusLabel = (status) => {
                                                     {{ item.assetable.room.floor?.name }} - {{ item.assetable.room.name }}
                                                 </span>
                                             </div>
-                                            <div v-else class="text-orange-500 italic">
+                                            <div v-else class="text-warning italic">
                                                 Lokasi tidak ditemukan
                                             </div>
                                         </div>
@@ -186,17 +180,17 @@ const getStatusLabel = (status) => {
                                                 target_id: item.assetable_id, 
                                                 target_type: item.assetable_type.split('\\').pop().toLowerCase() 
                                             })"
-                                            class="group flex flex-col items-center justify-center gap-1 p-2 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 hover:border-indigo-200 rounded-lg transition-all"
+                                            class="group flex flex-col items-center justify-center gap-1 p-2 bg-primary/10 hover:bg-primary/10 border border-primary/20 hover:border-primary rounded-md transition-all"
                                             title="Lihat Posisi di Peta"
                                         >
-                                            <MapPin class="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
-                                            <span class="text-[10px] font-bold text-indigo-700">Peta</span>
+                                            <MapPin class="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
+                                            <span class="text-[10px] font-bold text-primary">Peta</span>
                                         </Link>
                                     </div>
                                 </div>
                             </div>
 
-                            <div v-else class="text-xs text-red-500 italic flex items-center gap-1">
+                            <div v-else class="text-xs text-danger italic flex items-center gap-1">
                                 <AlertCircle class="w-3.5 h-3.5" />
                                 <span>Data Aset Telah Dihapus</span>
                             </div>
@@ -206,12 +200,12 @@ const getStatusLabel = (status) => {
 
                     <template #cell-date="{ item }">
                         <div class="text-xs space-y-1">
-                            <div class="flex items-center gap-1.5 text-gray-600">
-                                <Calendar class="w-3.5 h-3.5 text-gray-400" />
+                            <div class="flex items-center gap-1.5 text-ink-light">
+                                <Calendar class="w-3.5 h-3.5 text-ink-light" />
                                 <span>Jadwal: {{ new Date(item.schedule_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) }}</span>
                             </div>
                             <div :class="['flex items-center gap-1.5 font-medium', 
-                                new Date() > new Date(item.schedule_date) && item.status !== 'completed' ? 'text-red-600' : 'text-gray-500']">
+                                new Date() > new Date(item.schedule_date) && item.status !== 'completed' ? 'text-danger' : 'text-ink-light']">
                                 <Clock class="w-3.5 h-3.5" />
                                 <span>Deadline: {{ new Date(item.due_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }) }}</span>
                             </div>
@@ -220,7 +214,7 @@ const getStatusLabel = (status) => {
 
                 </DataTable>
 
-                <div class="p-4 border-t border-gray-100">
+                <div class="p-4 border-t border-ghost-hover">
                     <Pagination :links="inspections.links" />
                 </div>
             </Card>

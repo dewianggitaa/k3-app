@@ -18,11 +18,36 @@ class InspectionExecutionController extends Controller
         $inspection = Inspection::with(['assetable'])->findOrFail($id);
         $user = Auth::user();
 
-        $isMyTask = ($inspection->user_id === $user->id);
-        $isOpenForK3 = (is_null($inspection->user_id) && optional($user->department)->name === 'K3');
+        $isMyTask = ($inspection->user_id !== null && $inspection->user_id == $user->id);
+        $isOpenTask = is_null($inspection->user_id);
+        
+        $isK3Department = optional($user->department)->name === 'K3';
+        $hasK3Role = $user->hasRole('executor_k3');
+        $hasPicRole = $user->hasRole('executor_pic');
+        $canManage = $user->can('manage-inspections');
 
-        if (!$isMyTask && !$isOpenForK3) {
-            abort(403, 'Anda tidak memiliki akses untuk mengerjakan inspeksi ini.');
+        $isAuthorized = false;
+
+        if ($canManage) {
+            $isAuthorized = true;
+        } elseif ($isMyTask) {
+            $isAuthorized = true; // PICs can always do their own tasks
+        } elseif ($isOpenTask && ($isK3Department || $hasK3Role)) {
+            $isAuthorized = true; // K3 can do open tasks
+        }
+
+        if (!$isAuthorized) {
+            if ($isOpenTask) {
+                abort(403, 'Akses Ditolak: Ini adalah Open Task yang hanya bisa dikerjakan oleh Tim K3.');
+            } elseif (!$isMyTask) {
+                abort(403, 'Akses Ditolak: Tugas ini di-assign ke pengguna lain (User ID: ' . $inspection->user_id . '), bukan untuk Anda (User ID: ' . $user->id . ').');
+            } else {
+                abort(403, 'Anda tidak memiliki akses untuk mengerjakan inspeksi ini.');
+            }
+        }
+
+        if (!in_array($inspection->status, ['pending', 'overdue'])) {
+            abort(403, "Inspeksi ini tidak dapat dikerjakan karena statusnya saat ini adalah '{$inspection->status}'. Hanya inspeksi 'pending' atau 'overdue' yang dapat dikerjakan.");
         }
 
         $isK3 = optional($user->department)->name === 'K3';

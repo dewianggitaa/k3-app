@@ -21,39 +21,46 @@ defineProps({
     className: {
         type: String,
         default: ''
+    },
+    overflowVisible: {
+        type: Boolean,
+        default: false
     }
 });
 </script>
 
 <template>
     <div 
-        class="bg-surface dark:bg-surface-dark border border-ghost dark:border-gray-700 rounded-lg shadow-sm flex flex-col transition-colors duration-300 w-full"
+        class="bg-surface dark:bg-surface-dark border border-ghost dark:border-ghost-dark rounded-md shadow-sm flex flex-col transition-colors duration-300 w-full"
         :class="className"
     >
         
         <div v-if="title || $slots.header" 
-             class="px-5 py-4 border-b border-ghost dark:border-gray-700 flex items-center justify-between shrink-0 min-h-[50px]">
-            
+             class="px-3 py-3 border-b border-ghost dark:border-ghost-dark flex items-center justify-between shrink-0 min-h-[40px]">
+             
             <div class="flex-1">
-                <h3 v-if="title" class="font-bold text-sm text-ink dark:text-ink-dark tracking-wide">
+                <h3 v-if="title" class="font-bold text-[13px] text-ink dark:text-ink-dark tracking-wide">
                     {{ title }}
                 </h3>
                 
                 <slot v-else name="header" />
             </div>
             
-            <div v-if="$slots.action" class="ml-4 flex items-center gap-2">
+            <div v-if="$slots.action" class="ml-3 flex items-center gap-2">
                 <slot name="action" />
             </div>
         </div>
 
-        <div class="flex-1 overflow-x-hidden overflow-y-auto custom-scrollbar" 
-            :class="[ noPadding ? 'p-0' : 'p-5' ]"
+        <div class="flex-1 custom-scrollbar" 
+            :class="[ 
+                noPadding ? 'p-0' : 'p-3',
+                overflowVisible ? '!overflow-visible' : 'overflow-x-hidden overflow-y-auto'
+            ]"
         >
             <slot />
         </div>
 
-        <div v-if="$slots.footer" class="px-5 py-3 border-t border-ghost dark:border-gray-700 bg-ghost/5 dark:bg-gray-800/30 rounded-b-lg shrink-0">
+        <div v-if="$slots.footer" class="px-3 py-2.5 border-t border-ghost dark:border-ghost-dark bg-ghost/5 dark:bg-surface-dark/30 rounded-b-lg shrink-0">
             <slot name="footer" />
         </div>
 

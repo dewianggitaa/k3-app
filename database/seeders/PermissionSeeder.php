@@ -10,7 +10,6 @@ class PermissionSeeder extends Seeder
     public function run(): void
     {
         $permissions = [
-            // Manajemen Pengguna
             'view-users',
             'create-users',
             'edit-users',
@@ -18,13 +17,13 @@ class PermissionSeeder extends Seeder
             'toggle-user-status',
             'manage-roles',
 
-            // Data Master
             'manage-buildings',
             'manage-floors',
             'manage-rooms',
             'manage-assets',
             'manage-asset-mapping',
             'manage-checklist-parameters',
+            'manage-report-forms',
 
             // Penjadwalan
             'view-schedules',

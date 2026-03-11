@@ -24,7 +24,9 @@ class Inspection extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['schedule_id', 'assetable_type', 'assetable_id', 'user_id', 'status', 'schedule_date', 'due_date', 'report_data'])
+            ->logUnguarded()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
             ->setDescriptionForEvent(fn(string $eventName) => "Inspection {$eventName}")
             ->useLogName('jadwal-inspeksi');
     }

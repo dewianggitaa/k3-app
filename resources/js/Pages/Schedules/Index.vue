@@ -51,7 +51,6 @@ watch(search, debounce((value) => {
     router.get(route('schedules.index'), { search: value }, { preserveState: true, replace: true });
 }, 300));
 
-
 const openCreateModal = () => {
     isEditing.value = false;
     form.reset();
@@ -98,7 +97,9 @@ const deleteSchedule = (id) => {
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Ya, Hapus',
+        cancelButtonText: 'Batal',
         confirmButtonColor: '#ef4444',
+        reverseButtons: true
     }).then((result) => {
         if (result.isConfirmed) {
             router.delete(route('schedules.destroy', id), {
@@ -108,7 +109,6 @@ const deleteSchedule = (id) => {
     });
 };
 
-// --- HELPER UI ---
 const columns = [
     { label: 'Target Inspeksi', key: 'target', class: 'w-1/3 text-center' },
     { label: 'Jadwal & Frekuensi', key: 'frequency', class:'text-center' },
@@ -140,144 +140,154 @@ const getAssetName = (type) => {
             </div>
         </template>
 
-        <Card no-padding>
-            <template #header>
-                <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-                    <SearchInput v-model="search" placeholder="Cari aset..." class="w-full md:w-64" />
+        <div class="space-y-4">
+            
+            <Card no-padding class="p-4 overflow-visible" overflow-visible>
+                <div class="flex flex-row justify-between items-center gap-3 sm:gap-4">
+                    <div class="flex-1 sm:w-1/3 sm:flex-none min-w-[200px]">
+                        <SearchInput v-model="search" placeholder="Cari aset..." />
+                    </div>
                     
-                    <button v-if="can?.create" @click="openCreateModal" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-md flex items-center gap-2 shadow-sm transition-all">
-                        <Plus class="w-4 h-4" /> Buat Jadwal Baru
+                    <button 
+                        v-if="can?.create" 
+                        @click="openCreateModal" 
+                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-[38px] px-0 sm:w-auto sm:px-4 shrink-0"
+                    >
+                        <Plus class="w-5 h-5 sm:w-4 sm:h-4" /> 
+                        <span class="hidden sm:inline">Buat Jadwal Baru</span>
                     </button>
                 </div>
-            </template>
+            </Card>
 
-            <DataTable :items="schedules" :columns="columns">
-                
-                <template #cell-target="{ item }">
-                    <div class="flex items-start gap-3 py-2">
-                        <div class="p-2.5 rounded-xl bg-white border border-gray-200 shadow-sm shrink-0">
-                            <component :is="getAssetIcon(item.asset_type)" class="w-6 h-6 text-indigo-600" />
-                        </div>
-                        
-                        <div class="w-full">
-                            <div class="flex items-center justify-between mb-1">
-                                <span class="font-bold text-gray-900 text-sm">
-                                    {{ getAssetName(item.asset_type) }}
-                                </span>
-                                
-                                <span v-if="item.assign_type === 'pic'" 
-                                    class="flex items-center gap-1 bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-purple-200">
-                                    <UserCheck class="w-3 h-3" /> PIC Area
-                                </span>
-                                <span v-else 
-                                    class="flex items-center gap-1 bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-200">
-                                    <Users class="w-3 h-3" /> Tim K3
-                                </span>
+            <Card no-padding className="h-full">
+                <DataTable :items="schedules" :columns="columns">
+                    
+                    <template #cell-target="{ item }">
+                        <div class="flex items-start gap-3 py-2">
+                            <div class="p-2.5 rounded-md bg-surface border border-ghost-hover shadow-sm shrink-0">
+                                <component :is="getAssetIcon(item.asset_type)" class="w-6 h-6 text-primary" />
                             </div>
-
-                            <div class="flex flex-col gap-1">
-                                <div v-if="item.scope === 'global'" class="flex items-center gap-1.5 text-xs text-gray-600">
-                                    <Globe class="w-3.5 h-3.5 text-blue-500" />
-                                    <span>Berlaku untuk <b class="text-gray-800">Semua Gedung</b></span>
+                            
+                            <div class="w-full">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="font-bold text-ink text-sm">
+                                        {{ getAssetName(item.asset_type) }}
+                                    </span>
+                                    
+                                    <span v-if="item.assign_type === 'pic'" 
+                                        class="flex items-center gap-1 bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 rounded-full font-bold border border-purple-200">
+                                        <UserCheck class="w-3 h-3" /> PIC Area
+                                    </span>
+                                    <span v-else 
+                                        class="flex items-center gap-1 bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded-full font-bold border border-primary">
+                                        <Users class="w-3 h-3" /> Tim K3
+                                    </span>
                                 </div>
 
-                                <div v-else class="flex items-start gap-1.5 text-xs text-gray-600">
-                                    <Building class="w-3.5 h-3.5 mt-0.5 text-orange-500" />
-                                    <div>
-                                        <span>Berlaku di <b class="text-gray-800">{{ item.buildings?.length || 0 }} Gedung</b>:</span>
-                                        <div class="text-[10px] text-gray-500 mt-0.5 leading-tight">
-                                            <span v-for="(b, index) in item.buildings?.slice(0, 2)" :key="b.id">
-                                                {{ b.name }}<span v-if="index < Math.min(item.buildings.length, 2) - 1">, </span>
-                                            </span>
-                                            <span v-if="item.buildings?.length > 2" class="text-orange-600 font-medium">
-                                                +{{ item.buildings.length - 2 }} lainnya
-                                            </span>
-                                            <span v-if="!item.buildings?.length" class="text-red-500 italic">Belum pilih gedung</span>
+                                <div class="flex flex-col gap-1">
+                                    <div v-if="item.scope === 'global'" class="flex items-center gap-1.5 text-xs text-ink-light">
+                                        <Globe class="w-3.5 h-3.5 text-primary shrink-0" />
+                                        <span>Berlaku untuk <b class="text-ink">Semua Gedung</b></span>
+                                    </div>
+
+                                    <div v-else class="flex items-start gap-1.5 text-xs text-ink-light">
+                                        <Building class="w-3.5 h-3.5 mt-0.5 text-warning shrink-0" />
+                                        <div>
+                                            <span>Berlaku di <b class="text-ink">{{ item.buildings?.length || 0 }} Gedung</b>:</span>
+                                            <div class="text-[10px] text-ink-light mt-0.5 leading-tight">
+                                                <span v-for="(b, index) in item.buildings?.slice(0, 2)" :key="b.id">
+                                                    {{ b.name }}<span v-if="index < Math.min(item.buildings.length, 2) - 1">, </span>
+                                                </span>
+                                                <span v-if="item.buildings?.length > 2" class="text-warning font-medium">
+                                                    +{{ item.buildings.length - 2 }} lainnya
+                                                </span>
+                                                <span v-if="!item.buildings?.length" class="text-danger italic">Belum pilih gedung</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </template>
+                    </template>
 
-                <template #cell-frequency="{ item }">
-                    <div class="flex flex-col gap-1 py-1 items-center">
-                        <div class="text-xs font-medium text-gray-600 flex items-center gap-2">
-                            <Repeat class="w-3.5 h-3.5" />
-                            <span v-if="item.months_interval === 1">Setiap Bulan</span>
-                            <span v-else>Setiap {{ item.months_interval }} Bulan</span>
+                    <template #cell-frequency="{ item }">
+                        <div class="flex flex-col gap-1 py-1 items-center">
+                            <div class="text-xs font-medium text-ink-light flex items-center gap-2 whitespace-nowrap">
+                                <Repeat class="w-3.5 h-3.5" />
+                                <span v-if="item.months_interval === 1">Setiap Bulan</span>
+                                <span v-else>Setiap {{ item.months_interval }} Bulan</span>
+                            </div>
+                            
+                            <div v-if="item.week_rank">
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-ghost text-ink-light border border-ghost-hover whitespace-nowrap">
+                                    Mgg ke-{{ item.week_rank }}
+                                </span>
+                            </div>
+                            <div v-else>
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-success/10 text-success border border-success/30 whitespace-nowrap">
+                                    Sepanjang Bulan
+                                </span>
+                            </div>
                         </div>
-                        
-                        <div v-if="item.week_rank">
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200">
-                                Mgg ke-{{ item.week_rank }}
+                    </template>
+
+                    <template #cell-next_run="{ item }">
+                        <div class="flex flex-col items-center whitespace-nowrap">
+                            <span class="font-bold text-sm text-ink">
+                                {{ new Date(item.next_run_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }}
                             </span>
+                            <span class="text-[10px] text-ink-light">Jadwal Generate</span>
                         </div>
-                        <div v-else>
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">
-                                Sepanjang Bulan
-                            </span>
+                    </template>
+
+                    <template #cell-action="{ item }">
+                        <div v-if="can?.create || can?.delete" class="flex justify-center gap-1">
+                            <button v-if="can?.create" @click="openEditModal(item)" class="p-1.5 text-ink-light hover:text-primary hover:bg-primary/10 rounded transition-colors" title="Edit Aturan">
+                                <Pencil class="w-4 h-4" />
+                            </button>
+                            <button v-if="can?.delete" @click="deleteSchedule(item.id)" class="p-1.5 text-ink-light hover:text-danger hover:bg-danger/10 rounded transition-colors" title="Hapus Aturan">
+                                <Trash2 class="w-4 h-4" />
+                            </button>
                         </div>
-                    </div>
-                </template>
+                    </template>
 
-                <template #cell-next_run="{ item }">
-                    <div class="flex flex-col items-center">
-                        <span class="font-bold text-sm text-gray-800">
-                            {{ new Date(item.next_run_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) }}
-                        </span>
-                        <span class="text-[10px] text-gray-400">Jadwal Generate</span>
-                    </div>
-                </template>
+                </DataTable>
+            </Card>
 
-                <template #cell-action="{ item }">
-                    <div v-if="can?.create || can?.delete" class="flex justify-center gap-1">
-                        <button v-if="can?.create" @click="openEditModal(item)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Edit Aturan">
-                            <Pencil class="w-4 h-4" />
-                        </button>
-                        <button v-if="can?.delete" @click="deleteSchedule(item.id)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors" title="Hapus Aturan">
-                            <Trash2 class="w-4 h-4" />
-                        </button>
-                    </div>
-                </template>
-
-            </DataTable>
-        </Card>
+        </div>
 
         <Modal :show="showModal" @close="showModal = false" max-width="lg">
-            <div class="p-6">
-                <h2 class="text-lg font-bold mb-6 flex items-center gap-2 text-gray-800 border-b pb-4">
-                    <CalendarClock class="w-5 h-5 text-blue-600" />
+            <div class="p-4 sm:p-5">
+                <h2 class="text-lg font-bold mb-5 sm:mb-6 flex items-center gap-2 text-ink border-b pb-4">
+                    <CalendarClock class="w-5 h-5 text-primary" />
                     {{ isEditing ? 'Edit Aturan Jadwal' : 'Buat Jadwal Massal' }}
                 </h2>
 
-                <form @submit.prevent="submit" class="space-y-6">
+                <form @submit.prevent="submit" class="space-y-5 sm:space-y-6">
                     
-                    <div class="mt-4">
+                    <div>
                         <InputLabel value="Ditugaskan Kepada Siapa?" class="mb-2" />
-                        
-                        <div class="grid grid-cols-2 gap-3">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <label class="cursor-pointer relative">
                                 <input type="radio" v-model="form.assign_type" value="k3" class="peer sr-only">
-                                <div class="p-3 rounded-lg border bg-white hover:bg-gray-50 transition-all peer-checked:border-blue-500 peer-checked:ring-1 peer-checked:ring-blue-500 peer-checked:bg-blue-50">
+                                <div class="p-3 rounded-md border bg-surface hover:bg-ghost transition-all peer-checked:border-primary peer-checked:ring-1 peer-checked:ring-primary peer-checked:bg-primary/10">
                                     <div class="flex items-center gap-2 mb-1">
-                                        <div class="p-1.5 bg-blue-100 rounded-md text-blue-600">
+                                        <div class="p-1.5 bg-primary/10 rounded-md text-primary shrink-0">
                                             <Users class="w-4 h-4" />
                                         </div>
-                                        <span class="font-bold text-sm text-gray-800">Tim K3</span>
+                                        <span class="font-bold text-sm text-ink">Tim K3</span>
                                     </div>
                                 </div>
                             </label>
 
                             <label class="cursor-pointer relative">
                                 <input type="radio" v-model="form.assign_type" value="pic" class="peer sr-only">
-                                <div class="p-3 rounded-lg border bg-white hover:bg-gray-50 transition-all peer-checked:border-purple-500 peer-checked:ring-1 peer-checked:ring-purple-500 peer-checked:bg-purple-50">
+                                <div class="p-3 rounded-md border bg-surface hover:bg-ghost transition-all peer-checked:border-purple-500 peer-checked:ring-1 peer-checked:ring-purple-500 peer-checked:bg-purple-50">
                                     <div class="flex items-center gap-2 mb-1">
-                                        <div class="p-1.5 bg-purple-100 rounded-md text-purple-600">
+                                        <div class="p-1.5 bg-purple-100 rounded-md text-purple-600 shrink-0">
                                             <UserCheck class="w-4 h-4" />
                                         </div>
-                                        <span class="font-bold text-sm text-gray-800">PIC Ruangan</span>
+                                        <span class="font-bold text-sm text-ink">PIC Ruangan</span>
                                     </div>
                                 </div>
                             </label>
@@ -287,71 +297,71 @@ const getAssetName = (type) => {
 
                     <div v-if="!isEditing">
                         <InputLabel value="Jenis Aset" />
-                        <div class="grid grid-cols-3 gap-3 mt-1">
+                        <div class="grid grid-cols-3 gap-2 sm:gap-3 mt-1">
                             <label class="cursor-pointer">
                                 <input type="radio" v-model="form.asset_type" value="App\Models\Apar" class="peer sr-only">
-                                <div class="p-3 rounded-lg border text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700 hover:bg-gray-50">
-                                    <Flame class="w-6 h-6 mx-auto mb-1" />
-                                    <span class="text-xs font-bold">APAR</span>
+                                <div class="p-2 sm:p-3 rounded-md border text-center peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-primary hover:bg-ghost">
+                                    <Flame class="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1" />
+                                    <span class="text-[10px] sm:text-xs font-bold">APAR</span>
                                 </div>
                             </label>
                             <label class="cursor-pointer">
                                 <input type="radio" v-model="form.asset_type" value="App\Models\Hydrant" class="peer sr-only">
-                                <div class="p-3 rounded-lg border text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700 hover:bg-gray-50">
-                                    <Droplet class="w-6 h-6 mx-auto mb-1" />
-                                    <span class="text-xs font-bold">Hydrant</span>
+                                <div class="p-2 sm:p-3 rounded-md border text-center peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-primary hover:bg-ghost">
+                                    <Droplet class="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1" />
+                                    <span class="text-[10px] sm:text-xs font-bold">Hydrant</span>
                                 </div>
                             </label>
                             <label class="cursor-pointer">
                                 <input type="radio" v-model="form.asset_type" value="App\Models\P3k" class="peer sr-only">
-                                <div class="p-3 rounded-lg border text-center peer-checked:border-blue-500 peer-checked:bg-blue-50 peer-checked:text-blue-700 hover:bg-gray-50">
-                                    <BriefcaseMedical class="w-6 h-6 mx-auto mb-1" />
-                                    <span class="text-xs font-bold">P3K</span>
+                                <div class="p-2 sm:p-3 rounded-md border text-center peer-checked:border-primary peer-checked:bg-primary/10 peer-checked:text-primary hover:bg-ghost">
+                                    <BriefcaseMedical class="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1" />
+                                    <span class="text-[10px] sm:text-xs font-bold">P3K</span>
                                 </div>
                             </label>
                         </div>
                     </div>
 
-                    <div v-if="!isEditing" class="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <InputLabel value="Terapkan Pada:" class="mb-3 text-gray-800" />
+                    <div v-if="!isEditing" class="p-4 bg-ghost rounded-md border border-ghost-hover">
+                        <InputLabel value="Terapkan Pada:" class="mb-3 text-ink" />
 
                         <label class="flex items-start gap-3 mb-3 cursor-pointer">
                             <input type="radio" v-model="form.scope" value="global" class="mt-1">
                             <div>
-                                <div class="flex items-center gap-2 font-bold text-sm text-gray-700">
-                                    <Globe class="w-4 h-4 text-blue-500" />
+                                <div class="flex items-center gap-2 font-bold text-sm text-ink dark:text-ink-dark/90">
+                                    <Globe class="w-4 h-4 text-primary shrink-0" />
                                     Semua Gedung (Global)
                                 </div>
-                                <p class="text-xs text-gray-500">Jadwalkan untuk seluruh aset di pabrik.</p>
+                                <p class="text-[11px] sm:text-xs text-ink-light">Jadwalkan untuk seluruh aset di pabrik.</p>
                             </div>
                         </label>
 
                         <label class="flex items-start gap-3 cursor-pointer">
                             <input type="radio" v-model="form.scope" value="building" class="mt-1">
                             <div>
-                                <div class="flex items-center gap-2 font-bold text-sm text-gray-700">
-                                    <Building class="w-4 h-4 text-orange-500" />
+                                <div class="flex items-center gap-2 font-bold text-sm text-ink dark:text-ink-dark/90">
+                                    <Building class="w-4 h-4 text-warning shrink-0" />
                                     Pilih Gedung Tertentu
                                 </div>
-                                <p class="text-xs text-gray-500">Pilih satu atau lebih gedung spesifik.</p>
+                                <p class="text-[11px] sm:text-xs text-ink-light">Pilih satu atau lebih gedung spesifik.</p>
                             </div>
                         </label>
 
-                        <div v-if="form.scope === 'building'" class="mt-3 ml-7 p-3 bg-white border rounded-md max-h-40 overflow-y-auto">
-                            <div v-if="buildings.length === 0" class="text-xs text-red-500">Data gedung kosong.</div>
+                        <div v-if="form.scope === 'building'" class="mt-3 ml-7 p-3 bg-surface border rounded-md max-h-40 overflow-y-auto">
+                            <div v-if="buildings.length === 0" class="text-xs text-danger">Data gedung kosong.</div>
                             <div v-for="b in buildings" :key="b.id" class="flex items-center gap-2 mb-2 last:mb-0">
-                                <input type="checkbox" :value="b.id" v-model="form.building_ids" class="rounded text-blue-600 focus:ring-blue-500 border-gray-300">
-                                <span class="text-sm text-gray-700">{{ b.name }}</span>
+                                <input type="checkbox" :value="b.id" v-model="form.building_ids" class="rounded text-primary focus:ring-primary border-ghost-hover">
+                                <span class="text-[13px] sm:text-sm text-ink dark:text-ink-dark/90">{{ b.name }}</span>
                             </div>
                         </div>
                         <InputError :message="form.errors.building_ids" class="mt-2" />
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <InputLabel value="Interval (Bulan)" />
-                            <TextInput v-model="form.months_interval" type="number" min="1" class="w-full text-center font-bold" />
-                            <p class="text-[10px] text-gray-500 mt-1">Contoh: 1 = Tiap bulan.</p>
+                            <TextInput v-model="form.months_interval" type="number" min="1" class="w-full text-center sm:text-left font-bold" />
+                            <p class="text-[10px] text-ink-light mt-1">Contoh: 1 = Tiap bulan.</p>
                         </div>
                         <div>
                             <InputLabel value="Start Date" />
@@ -361,23 +371,30 @@ const getAssetName = (type) => {
 
                     <div>
                         <InputLabel value="Target Pengerjaan (Mingguan)" class="mb-2" />
-                        <div class="grid grid-cols-5 gap-2">
+                        <div class="grid grid-cols-5 gap-1.5 sm:gap-2">
                             <div @click="form.week_rank = null"
-                                :class="['cursor-pointer rounded border py-2 text-center text-xs transition-all', form.week_rank === null ? 'bg-blue-600 text-white font-bold' : 'bg-white hover:bg-gray-50']">
+                                :class="['cursor-pointer rounded border py-2 text-center text-[10px] sm:text-xs transition-all', form.week_rank === null ? 'bg-primary text-white font-bold' : 'bg-surface hover:bg-ghost']">
                                 Bebas
                             </div>
                             <div v-for="i in 4" :key="i" @click="form.week_rank = i"
-                                :class="['cursor-pointer rounded border py-2 text-center text-xs transition-all', form.week_rank === i ? 'bg-blue-600 text-white font-bold' : 'bg-white hover:bg-gray-50']">
+                                :class="['cursor-pointer rounded border py-2 text-center text-[10px] sm:text-xs transition-all', form.week_rank === i ? 'bg-primary text-white font-bold' : 'bg-surface hover:bg-ghost']">
                                 Mgg {{ i }}
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex justify-end gap-3 pt-4 border-t mt-4">
-                        <button type="button" @click="showModal = false" class="text-sm font-semibold text-gray-500 hover:text-gray-700">
+                    <div class="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t mt-4">
+                        <button 
+                            type="button" 
+                            @click="showModal = false" 
+                            class="w-full sm:w-auto px-4 py-2 sm:py-2.5 text-sm font-semibold text-ink-light hover:text-ink dark:text-ink-dark/90 transition-colors bg-ghost sm:bg-transparent rounded-md"
+                        >
                             Batal
                         </button>
-                        <PrimaryButton :disabled="form.processing">
+                        <PrimaryButton 
+                            class="w-full sm:w-auto justify-center py-2 sm:py-2.5 shadow-md sm:shadow-lg shadow-indigo-200"
+                            :disabled="form.processing"
+                        >
                             {{ isEditing ? 'Simpan Perubahan' : 'Generate Jadwal' }}
                         </PrimaryButton>
                     </div>

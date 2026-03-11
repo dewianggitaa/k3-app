@@ -9,7 +9,7 @@ const { isDark, toggleTheme } = useTheme();
     <button 
         @click="toggleTheme" 
         class="p-2 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-primary/50"
-        :class="[ isDark ? 'bg-surface-dark text-yellow-400 hover:bg-gray-700' : 'bg-white text-gray-500 hover:bg-gray-100 shadow-sm' ]"
+        :class="[ isDark ? 'bg-surface-dark text-yellow-400 hover:bg-gray-700' : 'bg-surface text-ink-light hover:bg-ghost shadow-sm' ]"
         title="Ganti Tema"
     >
         <Sun v-if="isDark" class="w-5 h-5" />

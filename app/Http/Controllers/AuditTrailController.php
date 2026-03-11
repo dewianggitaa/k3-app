@@ -13,28 +13,28 @@ class AuditTrailController extends Controller
     {
         abort_unless(Auth::user()->can('manage-roles'), 403, 'Anda tidak memiliki izin.');
 
-        $query = Activity::with('causer')
-            ->latest();
+        $query = Activity::latest();
 
         // Filter by log_name (category)
-        if ($request->filled('category') && $request->category !== 'all') {
+        if ($request->filled('category')) {
             $query->where('log_name', $request->category);
         }
 
         // Filter by event
-        if ($request->filled('event') && $request->event !== 'all') {
+        if ($request->filled('event')) {
             $query->where('event', $request->event);
         }
 
         // Filter by date range
         if ($request->filled('range')) {
             $days = match($request->range) {
-                'today' => 1,
+                'today' => 0,
                 '7days' => 7,
                 '30days' => 30,
                 default => null,
             };
-            if ($days) {
+            
+            if ($days !== null) {
                 $query->where('created_at', '>=', now()->subDays($days)->startOfDay());
             }
         }
@@ -50,7 +50,8 @@ class AuditTrailController extends Controller
             });
         }
 
-        $logs = $query->paginate(20)->withQueryString();
+        // Eager load causer map details
+        $logs = $query->with('causer')->paginate(20)->withQueryString();
 
         // Get distinct log_names for category filter pills
         $categories = Activity::distinct()->pluck('log_name')->filter()->values();
@@ -58,7 +59,12 @@ class AuditTrailController extends Controller
         return Inertia::render('AuditTrail/Index', [
             'logs'       => $logs,
             'categories' => $categories,
-            'filters'    => $request->only(['category', 'event', 'range', 'search']),
+            'filters'    => [
+                'search'   => $request->search,
+                'category' => $request->category ?? 'all',
+                'event'    => $request->event ?? 'all',
+                'range'    => $request->range ?? 'all',
+            ],
         ]);
     }
 }

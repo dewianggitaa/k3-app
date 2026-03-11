@@ -16,6 +16,7 @@ class Apar extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['code', 'apar_type_id', 'room_id', 'status', 'weight', 'last_refilled_at', 'expired_at', 'location_data'])
+            ->logOnlyDirty()
             ->setDescriptionForEvent(fn(string $eventName) => "Apar {$eventName}")
             ->useLogName('aset');
     }

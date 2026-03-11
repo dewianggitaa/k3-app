@@ -23,7 +23,6 @@ const props = defineProps({
     can: Object,
 });
 
-// --- STATE & LOGIC ---
 const search = ref(props.filters.search || '');
 const showModal = ref(false);
 const isEditing = ref(false);
@@ -34,7 +33,6 @@ const form = useForm({
     name: '',
 });
 
-// Toast Notification Helper
 const toast = Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -43,12 +41,10 @@ const toast = Swal.mixin({
     timerProgressBar: true,
 });
 
-// Search Watcher
 watch(search, debounce((value) => {
     router.get(route('buildings.index'), { search: value }, { preserveState: true, replace: true });
 }, 300));
 
-// Modal Actions
 const openCreateModal = () => {
     isEditing.value = false;
     form.reset();
@@ -128,7 +124,7 @@ const columns = [
     { label: 'No', key: 'no', class: 'w-12 text-center' },
     { label: 'Kode Gedung', key: 'code', class: 'w-32' },
     { label: 'Nama Gedung', key: 'name', class: 'font-medium' },
-    ...(props.can?.manage ? [{ label: '', key: 'action', class: 'w-24 text-right' }] : []),
+    ...(props.can?.manage ? [{ label: 'Aksi', key: 'action', class: 'w-24 text-center' }] : []),
 ];
 </script>
 
@@ -144,80 +140,86 @@ const columns = [
             </div>
         </template>
 
-        <Card no-padding className="h-full">
-            <template #header>
-                <div class="flex flex-col sm:flex-row justify-between items-center gap-4 w-full p-4">
-                    <div class="w-full sm:w-64">
+        <div class="space-y-4">
+            
+            <Card no-padding class="p-4 overflow-visible" overflow-visible>
+                <div class="flex flex-row justify-between items-center gap-3 sm:gap-4">
+                    
+                    <div class="flex-1 sm:w-1/3 sm:flex-none min-w-[200px]">
                         <SearchInput v-model="search" placeholder="Cari gedung..." />
                     </div>
 
                     <button 
                         v-if="can?.manage"
                         @click="openCreateModal"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-md shadow-sm flex items-center gap-2 transition-all"
+                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-[38px] px-0 sm:w-auto sm:px-4 shrink-0"
                     >
-                        <Plus class="w-4 h-4" />
-                        <span>Tambah Gedung</span>
+                        <Plus class="w-5 h-5 sm:w-4 sm:h-4" />
+                        <span class="hidden sm:inline">Tambah Gedung</span>
                     </button>
+                    
                 </div>
-            </template>
+            </Card>
 
-            <DataTable :items="buildings" :columns="columns">
-                <template #cell-no="{ index }">
-                    <span class="text-gray-400 font-mono text-[10px]">
-                        {{ (buildings.current_page - 1) * buildings.per_page + index + 1 }}
-                    </span>
-                </template>
+            <Card no-padding className="h-full">
+                <DataTable :items="buildings" :columns="columns">
+                    <template #cell-no="{ index }">
+                        <span class="text-ink-light font-mono text-[10px]">
+                            {{ (buildings.current_page - 1) * buildings.per_page + index + 1 }}
+                        </span>
+                    </template>
 
-                <template #cell-code="{ item }">
-                    <span class="px-2 py-1 rounded-md text-[10px] font-mono bg-gray-100 text-gray-700 border border-gray-200 tracking-wide uppercase">
-                        {{ item.code || 'N/A' }}
-                    </span>
-                </template>
+                    <template #cell-code="{ item }">
+                        <span class="px-2 py-1 rounded-md text-[10px] font-mono bg-ghost text-ink dark:text-ink-dark/90 border border-ghost-hover tracking-wide uppercase">
+                            {{ item.code || 'N/A' }}
+                        </span>
+                    </template>
 
-                <template #cell-name="{ item }">
-                    <span class="text-sm text-gray-700 font-medium">{{ item.name }}</span>
-                </template>
+                    <template #cell-name="{ item }">
+                        <span class="text-sm text-ink dark:text-ink-dark/90 font-medium">{{ item.name }}</span>
+                    </template>
 
-                <template #cell-action="{ item }">
-                    <div v-if="can?.manage" class="flex justify-end items-center gap-1">
-                        <button 
-                            @click="openEditModal(item)"
-                            class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                        >
-                            <Pencil class="w-4 h-4" />
-                        </button>
-                        <button 
-                            @click="deleteBuilding(item.id, item.name)"
-                            class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                        >
-                            <Trash2 class="w-4 h-4" />
-                        </button>
-                    </div>
-                </template>
-            </DataTable>
-        </Card>
+                    <template #cell-action="{ item }">
+                        <div v-if="can?.manage" class="flex justify-end items-center gap-1">
+                            <button 
+                                @click="openEditModal(item)"
+                                class="p-2 text-ink-light hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                            >
+                                <Pencil class="w-4 h-4" />
+                            </button>
+                            <button 
+                                @click="deleteBuilding(item.id, item.name)"
+                                class="p-2 text-ink-light hover:text-danger hover:bg-danger/10 rounded-md transition-colors"
+                            >
+                                <Trash2 class="w-4 h-4" />
+                            </button>
+                        </div>
+                    </template>
+                </DataTable>
+            </Card>
+            
+        </div>
 
         <Modal :show="showModal" @close="closeModal" max-width="md">
-            <div class="p-6">
+            <div class="p-4">
                 <div class="flex justify-between items-center mb-6 border-b pb-4">
-                    <div class="flex items-center gap-2 text-indigo-600">
+                    <div class="flex items-center gap-2 text-primary">
                         <Building2 class="w-5 h-5" />
-                        <h2 class="text-lg font-bold text-gray-900">
+                        <h2 class="text-lg font-bold text-ink">
                             {{ isEditing ? 'Edit Gedung' : 'Tambah Gedung' }}
                         </h2>
                     </div>
-                    <button @click="closeModal" class="p-1 rounded-full hover:bg-gray-100 transition-colors">
-                        <X class="w-5 h-5 text-gray-400" />
+                    <button @click="closeModal" class="p-1 rounded-full hover:bg-ghost transition-colors">
+                        <X class="w-5 h-5 text-ink-light" />
                     </button>
                 </div>
 
                 <form @submit.prevent="submit" class="space-y-5">
                     <div>
-                        <InputLabel value="Kode Gedung" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
+                        <InputLabel value="Kode Gedung" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
                         <div class="relative">
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Hash class="h-4 w-4 text-gray-400" />
+                                <Hash class="h-4 w-4 text-ink-light" />
                             </div>
                             <TextInput 
                                 v-model="form.code"
@@ -231,7 +233,7 @@ const columns = [
                     </div>
 
                     <div>
-                        <InputLabel value="Nama Gedung" class="mb-1 text-[10px] uppercase tracking-widest text-gray-400" />
+                        <InputLabel value="Nama Gedung" class="mb-1 text-[10px] uppercase tracking-widest text-ink-light" />
                         <TextInput 
                             v-model="form.name"
                             type="text"
@@ -242,16 +244,16 @@ const columns = [
                         <InputError :message="form.errors.name" class="mt-1" />
                     </div>
 
-                    <div class="flex justify-end gap-3 pt-4 border-t mt-6">
+                    <div class="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t mt-6">
                         <button 
                             type="button" 
                             @click="closeModal"
-                            class="px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 transition-colors"
+                            class="w-full sm:w-auto px-4 py-2 text-sm font-semibold text-ink-light hover:text-ink transition-colors bg-ghost sm:bg-transparent rounded-md"
                         >
                             Batal
                         </button>
                         <PrimaryButton 
-                            class="bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200"
+                            class="w-full sm:w-auto justify-center bg-primary hover:bg-primary-hover shadow-lg shadow-indigo-200"
                             :class="{ 'opacity-25': form.processing }" 
                             :disabled="form.processing"
                         >

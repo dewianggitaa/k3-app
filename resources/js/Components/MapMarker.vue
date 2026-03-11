@@ -25,7 +25,7 @@ const iconUrl = computed(() => {
         apar: '/icon-apar.png',
         hydrant: '/icon-hydrant.png'
     };
-    // Jika props.type p3k atau P3K, tetap arahkan ke file yang benar
+
     const typeKey = String(props.type).toLowerCase();
     return icons[typeKey] || '/icon-p3k.png';
 });

@@ -1,32 +1,101 @@
 @extends('pdf.layout')
 
 @section('content')
+
+    @if($selectedAsset !== 'all')
+    @php
+        $invMap = $p3kInventory->keyBy('id');
+    @endphp
+    @endif
+
+    @php $rowNum = 0; @endphp
+
     <table>
         <thead>
             <tr>
-                <th width="15%">Waktu Kejadian</th>
-                @if($selectedAsset === 'all') <th width="15%">Kotak P3K</th> @endif
-                <th width="15%">Tipe Aktivitas</th>
-                <th width="20%">Aktor / Pelapor</th>
-                <th width="{{ $selectedAsset === 'all' ? '35%' : '50%' }}">Detail Keterangan</th>
+                <th width="4%" style="text-align: center;">No</th>
+                <th width="18%" style="text-align: center;">Isi</th>
+                <th width="8%" style="text-align: center;">Jml. Awal</th>
+                <th width="8%" style="text-align: center;">Mutasi</th>
+                <th width="13%" style="text-align: center;">Tipe Aktivitas</th>
+                <th width="10%" style="text-align: center;">Tanggal</th>
+                <th width="25%">Keterangan</th>
+                <th width="14%">Petugas</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($data as $row)
+            @forelse($data as $entry)
+                @php
+                    $isInspection = $entry['entry_type'] === 'inspeksi';
+                    $isPemakaian = $entry['entry_type'] === 'pemakaian';
+                    $isPenambahan = $entry['entry_type'] === 'penambahan';
+                    $qtyColor = $isPemakaian ? '#dc2626' : ($isPenambahan ? '#2563eb' : '#b45309');
+                    $itemCount = count($entry['items']);
+                @endphp
+
+                @foreach($entry['items'] as $idx => $item)
+                    @php $rowNum++; @endphp
+                    <tr>
+                        {{-- No --}}
+                        <td style="text-align: center; vertical-align: middle; font-size: 10px;">{{ $rowNum }}</td>
+
+                        {{-- Isi --}}
+                        <td style="vertical-align: middle; font-size: 10px;">{{ $item['item_name'] }}</td>
+
+                        {{-- Jml. Awal --}}
+                        <td style="text-align: center; vertical-align: middle; font-size: 10px;">
+                            @if($selectedAsset !== 'all' && isset($invMap[$item['item_id']]))
+                                {{ $invMap[$item['item_id']]->current_qty }}
+                            @else
+                                -
+                            @endif
+                        </td>
+
+                        {{-- Mutasi --}}
+                        <td style="text-align: center; vertical-align: middle; font-size: 10px; font-weight: bold; color: {{ $qtyColor }};">
+                            {{ $item['qty'] !== null ? $item['qty'] : '-' }}
+                        </td>
+
+                        {{-- Shared columns: rowspan for inspections, normal for others --}}
+                        @if($isInspection)
+                            @if($idx === 0)
+                                <td rowspan="{{ $itemCount }}" style="text-align: center; vertical-align: middle; font-size: 10px; font-weight: bold;">
+                                    {{ $entry['action_type'] }}
+                                </td>
+                                <td rowspan="{{ $itemCount }}" style="text-align: center; vertical-align: middle; font-size: 10px;">
+                                    {{ \Carbon\Carbon::parse($entry['record_date'])->format('d/m/Y H:i') }}
+                                </td>
+                                <td rowspan="{{ $itemCount }}" style="vertical-align: middle; font-size: 10px; {{ ($entry['has_issue'] ?? false) ? 'color: #dc2626; font-weight: bold;' : '' }}">
+                                    {{ $entry['notes'] }}
+                                </td>
+                                <td rowspan="{{ $itemCount }}" style="vertical-align: middle; font-size: 10px;">
+                                    {{ $entry['actor'] }}
+                                </td>
+                            @endif
+                        @else
+                            <td style="text-align: center; vertical-align: middle; font-size: 10px; font-weight: bold;">
+                                {{ $entry['action_type'] }}
+                            </td>
+                            <td style="text-align: center; vertical-align: middle; font-size: 10px;">
+                                {{ \Carbon\Carbon::parse($entry['record_date'])->format('d/m/Y H:i') }}
+                            </td>
+                            <td style="vertical-align: middle; font-size: 10px;">
+                                {{ $entry['notes'] }}
+                            </td>
+                            <td style="vertical-align: middle; font-size: 10px;">
+                                {{ $entry['actor'] }}
+                            </td>
+                        @endif
+                    </tr>
+                @endforeach
+            @empty
                 <tr>
-                    <td>{{ \Carbon\Carbon::parse($row['record_date'])->format('d/m/Y H:i') }}</td>
-                    @if($selectedAsset === 'all') <td><b>{{ $row['asset_code'] }}</b></td> @endif
-                    <td><b>{{ $row['action_type'] }}</b></td>
-                    <td>{{ $row['actor'] }}</td>
-                    <td>
-                        @php $parts = explode("\n", $row['details']); $isKritis = str_contains($parts[0], 'KRITIS'); @endphp
-                        <div style="font-weight: bold; " class="{{ $isKritis ? 'text-danger' : '' }}">{{ $parts[0] }}</div>
-                        @if(isset($parts[1])) <div class="meta-text" style="font-style: italic;">{{ $parts[1] }}</div> @endif
+                    <td colspan="8" style="text-align: center; padding: 30px; color: #999; font-style: italic;">
+                        Tidak ada data laporan P3K untuk periode ini.
                     </td>
                 </tr>
-            @empty
-                <tr><td colspan="{{ $selectedAsset === 'all' ? 5 : 4 }}" style="text-align: center; padding: 20px;">Tidak ada data laporan.</td></tr>
             @endforelse
         </tbody>
     </table>
+
 @endsection

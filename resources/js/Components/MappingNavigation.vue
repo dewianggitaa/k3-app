@@ -7,13 +7,13 @@ const props = defineProps({
 </script>
 
 <template>
-    <nav class="flex gap-6 w-full pt-2">
+    <nav class="flex gap-4 w-full pt-2">
         <NavLink 
             :href="route('floors.mapping', floorId)" 
             :active="route().current('floors.mapping')"
             class="pb-3"
         >
-            Area Ruangan
+            Mapping Area
         </NavLink>
 
         <NavLink 
@@ -21,7 +21,7 @@ const props = defineProps({
             :active="route().current('assets.mapping')"
             class="pb-3"
         >
-            Titik Aset (P3K)
+            Mapping Asset
         </NavLink>
     </nav>
 </template>

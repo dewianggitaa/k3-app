@@ -12,6 +12,13 @@ const toast = Swal.mixin({
     timer: 3000,
 });
 
+const zoomLevel = ref(1);
+const offset = ref({ x: 0, y: 0 });
+const startPan = ref({ x: 0, y: 0 });
+const hasDragged = ref(false);
+const startPinchDist = ref(0);
+const startZoomLevel = ref(1);
+const isDragging = ref(false);
 const isLoadingDetail = ref(false);
 const isSlideoverOpen = ref(false);
 const detailAsset = ref(null);
@@ -72,11 +79,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'onAreaError']);
 
-const zoomLevel = ref(1);
-const offset = ref({ x: 0, y: 0 });
-const isDragging = ref(false);
-const startPan = ref({ x: 0, y: 0 });
-
 const handleMouseDown = (event) => {
     if (event.button === 1 || (event.button === 0 && !props.selectedAsset)) {
         isDragging.value = true;
@@ -90,10 +92,58 @@ const handleMouseDown = (event) => {
 
 const handleMouseMove = (event) => {
     if (!isDragging.value) return;
-    offset.value = {
-        x: event.clientX - startPan.value.x,
-        y: event.clientY - startPan.value.y
-    };
+    const newX = event.clientX - startPan.value.x;
+    const newY = event.clientY - startPan.value.y;
+    if (Math.abs(newX - offset.value.x) > 5 || Math.abs(newY - offset.value.y) > 5) {
+        hasDragged.value = true;
+    }
+    offset.value = { x: newX, y: newY };
+};
+
+const handleTouchStart = (event) => {
+    if (event.touches.length === 1) {
+        isDragging.value = true;
+        startPan.value = { 
+            x: event.touches[0].clientX - offset.value.x, 
+            y: event.touches[0].clientY - offset.value.y 
+        };
+    } else if (event.touches.length === 2) {
+        isDragging.value = false;
+        const dist = Math.hypot(
+            event.touches[0].clientX - event.touches[1].clientX, 
+            event.touches[0].clientY - event.touches[1].clientY
+        );
+        startPinchDist.value = dist;
+        startZoomLevel.value = zoomLevel.value;
+    }
+};
+
+const handleTouchMove = (event) => {
+    if (event.touches.length === 1 && isDragging.value) {
+        const newX = event.touches[0].clientX - startPan.value.x;
+        const newY = event.touches[0].clientY - startPan.value.y;
+        if (Math.abs(newX - offset.value.x) > 5 || Math.abs(newY - offset.value.y) > 5) {
+            hasDragged.value = true;
+        }
+        offset.value = { x: newX, y: newY };
+    } else if (event.touches.length === 2) {
+        hasDragged.value = true;
+        event.preventDefault();
+        const dist = Math.hypot(
+            event.touches[0].clientX - event.touches[1].clientX, 
+            event.touches[0].clientY - event.touches[1].clientY
+        );
+        if (startPinchDist.value > 0) {
+            const scaleChange = dist / startPinchDist.value;
+            let newZoom = startZoomLevel.value * scaleChange;
+            zoomLevel.value = Math.min(Math.max(newZoom, 0.4), 5);
+        }
+    }
+};
+
+const handleTouchEnd = () => {
+    isDragging.value = false;
+    startPinchDist.value = 0;
 };
 
 const stopDragging = () => {
@@ -133,6 +183,10 @@ const activeRoom = computed(() => {
 });
 
 const handleMapClick = (event) => {
+    if (hasDragged.value) {
+        hasDragged.value = false;
+        return;
+    }
     if (isDragging.value || !props.selectedAsset) return;
 
     const room = activeRoom.value;
@@ -174,42 +228,39 @@ const toggleInfo = (id, event) => {
     }
     
     activeInfoId.value = id;
-    
-    // Compute position on next tick (wait for the DOM icon element)
+
     const iconEl = event?.currentTarget;
     if (!iconEl || !mapContainerRef.value) return;
     
     const iconRect = iconEl.getBoundingClientRect();
     const containerRect = mapContainerRef.value.getBoundingClientRect();
-    
-    // Available space in each direction INSIDE the map container
+
     const spaceAbove = iconRect.top - containerRect.top;
     const spaceBelow = containerRect.bottom - iconRect.bottom;
     const spaceLeft  = iconRect.left - containerRect.left;
     const spaceRight = containerRect.right - iconRect.right;
-    
-    // Pick direction with most room relative to the container
+
     const max = Math.max(spaceAbove, spaceBelow, spaceLeft, spaceRight);
     
     let style = { position: 'fixed', zIndex: 999, width: POPUP_W + 'px' };
     
     if (max === spaceBelow) {
-        // Place below
+
         style.top = (iconRect.bottom + OFFSET) + 'px';
         style.left = clamp(iconRect.left + iconRect.width / 2 - POPUP_W / 2, containerRect.left + 8, containerRect.right - POPUP_W - 8) + 'px';
         infoArrowDir.value = 'top';
     } else if (max === spaceAbove) {
-        // Place above
+
         style.top = (iconRect.top - POPUP_H - OFFSET) + 'px';
         style.left = clamp(iconRect.left + iconRect.width / 2 - POPUP_W / 2, containerRect.left + 8, containerRect.right - POPUP_W - 8) + 'px';
         infoArrowDir.value = 'bottom';
     } else if (max === spaceRight) {
-        // Place right
+
         style.left = (iconRect.right + OFFSET) + 'px';
         style.top = clamp(iconRect.top + iconRect.height / 2 - POPUP_H / 2, containerRect.top + 8, containerRect.bottom - POPUP_H - 8) + 'px';
         infoArrowDir.value = 'left';
     } else {
-        // Place left
+
         style.left = (iconRect.left - POPUP_W - OFFSET) + 'px';
         style.top = clamp(iconRect.top + iconRect.height / 2 - POPUP_H / 2, containerRect.top + 8, containerRect.bottom - POPUP_H - 8) + 'px';
         infoArrowDir.value = 'right';
@@ -236,29 +287,35 @@ const formatDate = (dateString) => {
 </script>
 
 <template>
-    <div class="relative w-full h-full overflow-hidden bg-slate-200 rounded-xl flex items-center justify-center border border-slate-300 shadow-inner"
+    <div class="relative w-full h-full overflow-hidden bg-slate-200 rounded-md flex items-center justify-center border border-ghost-hover shadow-inner touch-none"
         ref="mapContainerRef"
         @mousedown="handleMouseDown"
         @mousemove="handleMouseMove"
-        @wheel="handleWheel">
+        @wheel="handleWheel"
+        @touchstart.passive="handleTouchStart"
+        @touchmove="handleTouchMove"
+        @touchend="handleTouchEnd"
+        @touchcancel="handleTouchEnd">
         
-        <div class="absolute top-3 right-3 z-50 flex flex-col gap-1.5">
-            <button @click="zoomLevel = Math.min(zoomLevel + 0.5, 5)" class="p-2 bg-white/90 backdrop-blur rounded-lg shadow border hover:bg-white text-gray-600"><ZoomIn class="w-4 h-4"/></button>
-            <button @click="resetZoom" class="p-2 bg-white/90 backdrop-blur rounded-lg shadow border hover:bg-white text-gray-600"><Maximize class="w-4 h-4"/></button>
-            <button @click="zoomLevel = Math.max(zoomLevel - 0.5, 0.4)" class="p-2 bg-white/90 backdrop-blur rounded-lg shadow border hover:bg-white text-gray-600"><ZoomOut class="w-4 h-4"/></button>
+        <div class="hidden lg:flex absolute top-3 right-3 z-50 flex-col gap-1.5">
+            <button @click="zoomLevel = Math.min(zoomLevel + 0.5, 5)" class="p-2 bg-surface/90 backdrop-blur rounded-md shadow border hover:bg-surface text-ink-light"><ZoomIn class="w-4 h-4"/></button>
+            <button @click="resetZoom" class="p-2 bg-surface/90 backdrop-blur rounded-md shadow border hover:bg-surface text-ink-light"><Maximize class="w-4 h-4"/></button>
+            <button @click="zoomLevel = Math.max(zoomLevel - 0.5, 0.4)" class="p-2 bg-surface/90 backdrop-blur rounded-md shadow border hover:bg-surface text-ink-light"><ZoomOut class="w-4 h-4"/></button>
         </div>
 
         <div 
-            class="relative inline-block bg-white shadow-sm transition-transform duration-150 ease-out"
-           :style="mapStyle"
+            class="relative inline-block bg-surface shadow-2xl rounded-md overflow-hidden select-none"
+            :class="{ 'transition-transform duration-150 ease-out': !isDragging }"
+            :style="mapStyle"
         >
             <div class="relative flex" @click="handleMapClick">
                 <img :src="'/storage/floors/' + floor.map_image_path" 
-                     class="max-w-none h-[80vh] w-auto block select-none pointer-events-none" 
+                     class="max-w-full lg:max-w-none lg:h-[80vh] w-auto md:w-full lg:w-auto block select-none pointer-events-none" 
                      draggable="false" />
 
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" class="absolute top-0 left-0 w-full h-full pointer-events-none">
-                    <polygon v-for="room in rooms" :key="room.id"
+                    <polygon v-for="room in rooms" :key="'room-' + room.id"
+                        v-show="room.coordinates?.length > 0"
                         :points="room.coordinates?.map(p => `${p.x},${p.y}`).join(' ')"
                         :fill="activeRoom?.id === room.id ? hexToRgba(room.color, 0.1) : 'rgba(0,0,0,0.01)'"
                         :stroke="activeRoom?.id === room.id ? room.color : 'rgba(0,0,0,0.1)'"
@@ -282,15 +339,14 @@ const formatDate = (dateString) => {
                         <Teleport to="body">
                             <div v-if="activeInfoId === asset.id" 
                                 :style="infoPopupStyle"
-                                class="bg-white shadow-2xl border border-gray-200 rounded-xl pointer-events-auto overflow-hidden">
-                                
-                                <!-- Arrow: bottom (popup is above the icon) -->
+                                class="bg-surface shadow-2xl border border-ghost-hover rounded-md pointer-events-auto overflow-hidden">
+
                                 <div v-if="infoArrowDir === 'bottom'" class="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-white drop-shadow-sm"></div>
-                                <!-- Arrow: top (popup is below the icon) -->
+                                
                                 <div v-if="infoArrowDir === 'top'" class="absolute bottom-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-b-white drop-shadow-sm"></div>
-                                <!-- Arrow: right (popup is to the left) -->
+                                
                                 <div v-if="infoArrowDir === 'right'" class="absolute top-1/2 left-full -translate-y-1/2 border-[6px] border-transparent border-l-white drop-shadow-sm"></div>
-                                <!-- Arrow: left (popup is to the right) -->
+                                
                                 <div v-if="infoArrowDir === 'left'" class="absolute top-1/2 right-full -translate-y-1/2 border-[6px] border-transparent border-r-white drop-shadow-sm"></div>
                             <div class="p-2 text-white flex justify-between items-center bg-primary">
                                 <div>
@@ -301,15 +357,15 @@ const formatDate = (dateString) => {
 
                             <div class="p-3 space-t-3">
                                 <div v-for="item in (asset.is_double ? asset.original_items : [asset])" :key="item.id" 
-                                     class="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                                     class="border-b border-ghost-hover last:border-0 pb-3 last:pb-0">
                                     
                                     <div class="flex justify-between items-center mb-2">
-                                        <span class="text-[10px] font-black text-gray-800 uppercase">
+                                        <span class="text-[10px] font-black text-ink uppercase">
                                             {{ asset.is_double ? 'TABUNG ' + item.code.split('-').pop() : 'INFO ASET' }}
                                         </span>
                                         <span :class="[
                                             'text-[8px] px-2 py-0.5 rounded-full font-black border uppercase tracking-wider',
-                                            item.status?.toLowerCase() === 'safe' ? 'bg-green-50 text-green-700 border-green-200' : (item.status?.toLowerCase() === 'kritis' || item.status?.toLowerCase() === 'critical' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-100 text-gray-500 border-gray-200')
+                                            item.status?.toLowerCase() === 'safe' ? 'bg-success/10 text-success border-success/30' : (item.status?.toLowerCase() === 'kritis' || item.status?.toLowerCase() === 'critical' ? 'bg-danger/10 text-danger border-danger/30' : 'bg-ghost text-ink-light border-ghost-hover')
                                         ]">
                                             {{ item.status || 'BELUM CEK' }}
                                         </span>
@@ -317,32 +373,32 @@ const formatDate = (dateString) => {
 
                                     <div class="grid grid-cols-2 gap-y-1.5 text-[9px]">
                                         
-                                        <span class="text-gray-400">Tipe Aset:</span>
-                                        <span class="text-gray-900 font-bold text-right truncate">
+                                        <span class="text-ink-light">Tipe Aset:</span>
+                                        <span class="text-ink font-bold text-right truncate">
                                             {{ item.type?.name }}
                                         </span>
 
                                         <template v-if="getAssetType(asset) === 'apar'">
-                                            <span class="text-gray-400">Berat (Weight):</span>
-                                            <span class="text-gray-900 font-bold text-right">{{ item.weight ? item.weight + ' Kg' : '-' }}</span>
+                                            <span class="text-ink-light">Berat (Weight):</span>
+                                            <span class="text-ink font-bold text-right">{{ item.weight ? item.weight + ' Kg' : '-' }}</span>
                                             
-                                            <span class="text-gray-400">Terakhir Diisi:</span>
-                                            <span class="text-gray-900 font-bold text-right">{{ formatDate(item.last_refilled_at) }}</span>
+                                            <span class="text-ink-light">Terakhir Diisi:</span>
+                                            <span class="text-ink font-bold text-right">{{ formatDate(item.last_refilled_at) }}</span>
                                             
-                                            <span class="text-gray-400">Kadaluarsa:</span>
-                                            <span class="text-gray-900 font-bold text-right">{{ formatDate(item.expired_at) }}</span>
+                                            <span class="text-ink-light">Kadaluarsa:</span>
+                                            <span class="text-ink font-bold text-right">{{ formatDate(item.expired_at) }}</span>
                                         </template>
                                     </div>
 
                                     <div v-if="item.status?.toLowerCase() === 'critical' || item.status?.toLowerCase() === 'kritis'" 
-                                         class="mt-2 text-[9px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-100 leading-snug">
+                                         class="mt-2 text-[9px] text-danger bg-danger/10 p-2 rounded-md border border-red-100 leading-snug">
                                         <strong class="block mb-0.5 uppercase text-[8px] tracking-wider">Detail Kerusakan:</strong>
                                         {{ item.last_finding || item.critical_details || 'Hubungi petugas untuk detail lebih lanjut.' }}
                                     </div>
 
                                     <div class="pt-4">
                                         <button @click.stop="openDetail(item)" 
-                                            class="block w-full text-center py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[9px] font-bold transition">
+                                            class="block w-full text-center py-2 bg-ghost hover:bg-ghost-hover text-slate-700 rounded-md text-[9px] font-bold transition">
                                             DETAIL FISIK
                                         </button>
                                     </div>
@@ -350,7 +406,7 @@ const formatDate = (dateString) => {
 
                                 <div class="">
                                     <Link :href="route('reports.index', { tab: getAssetType(asset), asset_code: asset.code })" 
-                                          class="block w-full text-center py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[9px] font-bold transition">
+                                          class="block w-full text-center py-2 bg-ghost hover:bg-ghost-hover text-slate-700 rounded-md text-[9px] font-bold transition">
                                         RIWAYAT INSPEKSI
                                     </Link>
                                 </div>
@@ -380,18 +436,18 @@ const formatDate = (dateString) => {
     </div>
 
     <div :class="[
-            'fixed top-0 right-0 h-screen w-72 sm:w-80 bg-slate-50 shadow-2xl z-[1001] transform transition-transform duration-300 ease-in-out flex flex-col',
+            'fixed top-0 right-0 h-screen w-72 sm:w-80 bg-ghost shadow-2xl z-[1001] transform transition-transform duration-300 ease-in-out flex flex-col',
             isSlideoverOpen ? 'translate-x-0' : 'translate-x-full'
          ]">
          
-        <div class="bg-white p-4 border-b border-slate-200 shrink-0 shadow-sm z-10">
-            <button @click="closeDetail" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500 transition-colors">
+        <div class="bg-surface p-4 border-b border-ghost-hover shrink-0 shadow-sm z-10">
+            <button @click="closeDetail" class="absolute top-4 right-4 text-ink-light hover:text-rose-500 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
 
-            <h3 class="font-bold text-slate-800 text-sm pr-6">{{ detailAsset?.code || 'Memuat...' }}</h3>
-            <p class="text-[10px] text-slate-500 flex items-center gap-1 mt-1 font-medium">
-                <svg class="w-3 h-3 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <h3 class="font-bold text-ink text-sm pr-6">{{ detailAsset?.code || 'Memuat...' }}</h3>
+            <p class="text-[10px] text-ink-light flex items-center gap-1 mt-1 font-medium">
+                <svg class="w-3 h-3 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                 </svg>
@@ -402,7 +458,7 @@ const formatDate = (dateString) => {
         <div class="flex-1 overflow-y-auto p-4 relative">
             
             <h4 class="text-xs font-bold text-slate-700 mb-3 flex items-center gap-1.5">
-                <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
                 </svg>
                 Parameter Fisik
@@ -410,23 +466,23 @@ const formatDate = (dateString) => {
 
             <div class="space-y-1.5 relative min-h-[100px]">
                 
-                <div v-if="isLoadingDetail" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/80 z-10 rounded-lg">
-                    <div class="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p class="text-[10px] text-slate-500 mt-2 font-bold animate-pulse">Menyiapkan data...</p>
+                <div v-if="isLoadingDetail" class="absolute inset-0 flex flex-col items-center justify-center bg-ghost/80 z-10 rounded-md">
+                    <div class="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                    <p class="text-[10px] text-ink-light mt-2 font-bold animate-pulse">Menyiapkan data...</p>
                 </div>
 
                 <template v-else-if="detailAsset?.checklist_results?.length > 0">
                     <div v-for="(param, index) in detailAsset.checklist_results" :key="index" 
-                         class="flex justify-between items-center py-1.5 px-2.5 bg-white rounded-md border border-slate-200 shadow-sm hover:border-indigo-300 transition-all duration-200">
+                         class="flex justify-between items-center py-1.5 px-2.5 bg-surface rounded-md border border-ghost-hover shadow-sm hover:border-primary transition-all duration-200">
                         
-                        <span class="text-[10px] text-slate-600 font-medium leading-tight pr-2">
+                        <span class="text-[10px] text-ink-light font-medium leading-tight pr-2">
                             {{ param.question }}
                         </span>
                         
                         <span :class="[
                             'text-[9px] px-2 py-0.5 rounded font-bold text-center whitespace-nowrap min-w-[65px]',
                             param.is_safe 
-                                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' 
+                                ? 'bg-success/20 text-success border border-success/30' 
                                 : 'bg-rose-100 text-rose-700 border border-rose-200'
                         ]">
                             {{ param.answer }}
@@ -434,7 +490,7 @@ const formatDate = (dateString) => {
                     </div>
                 </template>
 
-                <div v-else class="flex flex-col items-center justify-center py-5 px-2 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 bg-white shadow-sm">
+                <div v-else class="flex flex-col items-center justify-center py-4 px-2 border-2 border-dashed border-ghost-hover rounded-md text-ink-light bg-surface shadow-sm">
                     <svg class="w-5 h-5 mb-1 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
                     </svg>
@@ -445,3 +501,14 @@ const formatDate = (dateString) => {
         </div>
     </div>
 </template>
+
+<style scoped>
+.select-none {
+    user-select: none;
+    -webkit-user-drag: none;
+}
+svg {
+    display: block;
+    will-change: transform;
+}
+</style>

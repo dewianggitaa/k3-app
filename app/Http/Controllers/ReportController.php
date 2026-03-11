@@ -7,6 +7,7 @@ use App\Models\Apar;
 use App\Models\Hydrant;
 use App\Models\P3k;
 use App\Models\User;
+use App\Models\ReportDocumentVersion;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -137,49 +138,25 @@ class ReportController extends Controller
         $supervisorName = $supervisor ? $supervisor->name : '';
 
         if ($tab === 'p3k') {
-            $dataP3k = collect();
-            
-            if (in_array($activityType, ['all', 'usage'])) {
-                $usages = DB::table('p3k_usages')->join('p3ks', 'p3k_usages.p3k_id', '=', 'p3ks.id')->join('p3k_items', 'p3k_usages.p3k_item_id', '=', 'p3k_items.id')->leftJoin('departments', 'p3k_usages.department_id', '=', 'departments.id')
-                    ->whereBetween('p3k_usages.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-                    ->when($assetCode !== 'all', fn($q) => $q->where('p3ks.code', $assetCode))
-                    ->select('p3k_usages.id', 'p3k_usages.created_at as record_date', 'p3ks.code as asset_code', 'p3k_usages.type', 'p3k_usages.reporter_name', 'departments.name as department_name', 'p3k_items.name as item_name', 'p3k_usages.qty', 'p3k_usages.notes')
-                    ->get()->map(function ($item) {
-                        return [
-                            'id' => 'usage_' . $item->id, 'record_date' => $item->record_date, 'asset_code' => $item->asset_code,
-                            'action_type' => $item->type === 'in' ? 'PENAMBAHAN' : 'PEMAKAIAN',
-                            'actor' => $item->reporter_name . ($item->department_name ? " ({$item->department_name})" : ''),
-                            'details' => "Item P3K: {$item->item_name}\nJumlah: {$item->qty} " . ($item->notes ? " (Catatan: {$item->notes})" : ''),
-                        ];
-                    });
-                $dataP3k = $dataP3k->concat($usages);
-            }
-            
-            if (in_array($activityType, ['all', 'inspection'])) {
-                $queryInsp = Inspection::with(['user', 'assetable'])
-                    ->where('assetable_type', P3k::class)
-                    ->whereNotIn('status', ['pending', 'overdue'])
-                    ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
-                
-                if ($assetCode !== 'all') {
-                    $queryInsp->whereHasMorph('assetable', [P3k::class], fn($q) => $q->where('code', $assetCode));
-                }
-                
-                $dataInsp = $queryInsp->get()->map(function ($inspection) use ($checklistParams, $itemNames) {
-                    return [
-                        'record_date' => $inspection->updated_at, 
-                        'asset_code' => $inspection->assetable->code ?? '-',
-                        'action_type' => 'INSPEKSI RUTIN', 
-                        'actor' => $inspection->user->name ?? 'Sistem K3', 
-                        'details' => $this->buildDetail($inspection, $checklistParams, $itemNames),
-                    ];
-                });
-                
-                $dataP3k = $dataP3k->concat($dataInsp);
-            }
+            $rawData = $this->formatP3kPdfData($startDate, $endDate, $assetCode, $activityType, $checklistParams, $itemNames);
 
-            $data = $dataP3k->sortByDesc('record_date')->values();
-
+            $hasInspections = $rawData->contains('entry_type', 'inspeksi');
+            if ($hasInspections) {
+                $documentVersion = ReportDocumentVersion::getActiveForType($tab);
+                $inspPageMap = $this->discoverP3kPageBreaks($rawData, [
+                    'tab' => strtoupper($tab), 'startDate' => $startDate, 'endDate' => $endDate,
+                    'selectedAsset' => $assetCode,
+                    'printedBy' => auth()->user()->name ?? 'Sistem K3',
+                    'printedByDepartment' => auth()->user()->department->name ?? 'K3',
+                    'supervisor' => $supervisorName,
+                    'documentVersion' => $documentVersion,
+                    'p3kInventory' => collect(),
+                    'isPreview' => true,
+                ]);
+                $data = $this->groupInspectionsByPage($rawData, $inspPageMap);
+            } else {
+                $data = $rawData;
+            }
         } else {
             $modelClass = $tab === 'apar' ? Apar::class : Hydrant::class;
             
@@ -195,12 +172,32 @@ class ReportController extends Controller
                 : $this->formatHydrantReports($allInspections, $checklistParams, $itemNames);
         }
 
+        $documentVersion = ReportDocumentVersion::getActiveForType($tab);
+
+        // P3K needs extra data: inventory for "Jumlah Awal"
+        $p3kInventory = collect();
+        if ($tab === 'p3k' && $assetCode !== 'all') {
+            $p3k = P3k::where('code', $assetCode)->first();
+            if ($p3k) {
+                $p3kInventory = DB::table('p3k_inventories')
+                    ->join('p3k_items', 'p3k_inventories.p3k_item_id', '=', 'p3k_items.id')
+                    ->where('p3k_inventories.p3k_id', $p3k->id)
+                    ->select('p3k_items.id', 'p3k_items.name', 'p3k_inventories.current_qty')
+                    ->orderBy('p3k_items.id')
+                    ->get();
+            }
+        }
+
+        $orientation = 'landscape';
+
         $pdf = Pdf::loadView($pdfView, [
             'data' => $data, 'tab' => strtoupper($tab), 'startDate' => $startDate, 'endDate' => $endDate, 'selectedAsset' => $assetCode, 
             'printedBy' => auth()->user()->name ?? 'Sistem K3',
             'printedByDepartment' => auth()->user()->department->name ?? 'K3',
             'supervisor' => $supervisorName,
-        ])->setPaper('a4', 'portrait');
+            'documentVersion' => $documentVersion,
+            'p3kInventory' => $p3kInventory,
+        ])->setPaper('a4', $orientation);
 
         activity()
             ->causedBy(auth()->user())
@@ -455,6 +452,216 @@ class ReportController extends Controller
 
         if (!empty($anomalies)) return "Kondisi: KRITIS\nRincian:\n" . implode("\n", $anomalies);
         return "Kondisi: BAIK";
+    }
+
+    /**
+     * Format data P3K untuk PDF: item-based entries.
+     * Sorted ascending by date (terlama di atas).
+     */
+    private function formatP3kPdfData($startDate, $endDate, $assetCode, $activityType, $checklistParams, $itemNames)
+    {
+        $entries = collect();
+
+        // ─── Usages (Pemakaian & Penambahan) ─────────────────
+        if (in_array($activityType, ['all', 'usage'])) {
+            $usages = DB::table('p3k_usages')
+                ->join('p3ks', 'p3k_usages.p3k_id', '=', 'p3ks.id')
+                ->join('p3k_items', 'p3k_usages.p3k_item_id', '=', 'p3k_items.id')
+                ->leftJoin('departments', 'p3k_usages.department_id', '=', 'departments.id')
+                ->whereBetween('p3k_usages.created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+                ->when($assetCode !== 'all', fn($q) => $q->where('p3ks.code', $assetCode))
+                ->select(
+                    'p3k_usages.id', 'p3k_usages.created_at as record_date',
+                    'p3k_usages.type', 'p3k_usages.reporter_name',
+                    'departments.name as department_name',
+                    'p3k_items.id as item_id', 'p3k_items.name as item_name',
+                    'p3k_usages.qty', 'p3k_usages.notes'
+                )
+                ->get();
+
+            foreach ($usages as $usage) {
+                $isRestock = $usage->type === 'in';
+                $actorLabel = $isRestock ? '(K3)' : ($usage->department_name ? "({$usage->department_name})" : '');
+
+                $entries->push([
+                    'entry_type' => $isRestock ? 'penambahan' : 'pemakaian',
+                    'record_date' => $usage->record_date,
+                    'action_type' => $isRestock ? 'Penambahan' : 'Pemakaian',
+                    'actor' => $usage->reporter_name . ' ' . $actorLabel,
+                    'notes' => $usage->notes ?? '',
+                    'items' => [
+                        [
+                            'item_id' => $usage->item_id,
+                            'item_name' => $usage->item_name,
+                            'qty' => (int) $usage->qty,
+                        ]
+                    ],
+                ]);
+            }
+        }
+
+        // ─── Inspeksi Rutin ──────────────────────────────────
+        if (in_array($activityType, ['all', 'inspection'])) {
+            $queryInsp = Inspection::with(['user.department', 'assetable'])
+                ->where('assetable_type', P3k::class)
+                ->whereNotIn('status', ['pending', 'overdue'])
+                ->whereBetween('updated_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+
+            if ($assetCode !== 'all') {
+                $queryInsp->whereHasMorph('assetable', [P3k::class], fn($q) => $q->where('code', $assetCode));
+            }
+
+            $inspections = $queryInsp->get();
+
+            foreach ($inspections as $inspection) {
+                $report = is_string($inspection->report_data)
+                    ? json_decode($inspection->report_data, true)
+                    : $inspection->report_data;
+
+                // Determine actor label: K3 or PIC
+                $userDept = optional(optional($inspection->user)->department)->name ?? '';
+                $actorLabel = strtoupper($userDept) === 'K3' ? '(K3)' : '(PIC)';
+                $actorName = optional($inspection->user)->name ?? 'Sistem K3';
+
+                // Build detail/keterangan from checklist answers
+                $detailLines = [];
+                $hasIssue = false;
+                if (isset($report['answers']) && is_array($report['answers'])) {
+                    foreach ($report['answers'] as $paramId => $ans) {
+                        $userAnswer = is_array($ans) ? ($ans['response'] ?? null) : $ans;
+                        if (isset($checklistParams[$paramId])) {
+                            $param = $checklistParams[$paramId];
+                            if (($param->input_type ?? '') === 'number') continue;
+                            $standardVal = $param->standard_value ?? '';
+                            if (trim($standardVal) === '') continue;
+                            if ($userAnswer && trim($userAnswer) != trim($standardVal)) {
+                                $label = $param->label ?? $param->name ?? 'Komponen';
+                                $detailLines[] = $label . ': ' . $userAnswer;
+                                $hasIssue = true;
+                            }
+                        }
+                    }
+                }
+
+                $keterangan = $hasIssue
+                    ? "KRITIS — " . implode(', ', $detailLines)
+                    : "Kondisi: BAIK";
+
+                // Build items list with actual quantities from report
+                $items = [];
+                $quantitiesMap = [];
+                if (isset($report['quantities']) && is_array($report['quantities'])) {
+                    foreach ($report['quantities'] as $qtyData) {
+                        if (is_array($qtyData) && isset($qtyData['item_id'])) {
+                            $quantitiesMap[(int) $qtyData['item_id']] = (int) ($qtyData['current_qty'] ?? 0);
+                        }
+                    }
+                }
+
+                // All items sorted by id
+                foreach ($itemNames as $itemId => $name) {
+                    $items[] = [
+                        'item_id' => $itemId,
+                        'item_name' => $name,
+                        'qty' => $quantitiesMap[$itemId] ?? null,
+                    ];
+                }
+
+                $entries->push([
+                    'entry_type' => 'inspeksi',
+                    'record_date' => $inspection->updated_at,
+                    'action_type' => 'Inspeksi Rutin',
+                    'actor' => $actorName . ' ' . $actorLabel,
+                    'notes' => $keterangan,
+                    'has_issue' => $hasIssue,
+                    'items' => $items,
+                ]);
+            }
+        }
+
+        // Sort ascending by date (terlama di atas, terbaru di bawah)
+        return $entries->sortBy('record_date')->values();
+    }
+
+    /**
+     * Discovery pass: render flat P3K table with inline PHP markers to detect
+     * which page each inspection item row lands on. Returns array of page numbers.
+     */
+    private function discoverP3kPageBreaks($entries, $viewVars)
+    {
+        $discoveryFile = tempnam(sys_get_temp_dir(), 'p3k_pg_');
+        file_put_contents($discoveryFile, '');
+
+        $discoveryVars = array_merge($viewVars, [
+            'data' => $entries,
+            'discoveryFile' => $discoveryFile,
+        ]);
+
+        $html = view('pdf.p3k_discovery', $discoveryVars)->render();
+
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->getOptions()->set('isPhpEnabled', true);
+        $dompdf->getOptions()->set('isRemoteEnabled', true);
+        $dompdf->getOptions()->set('chroot', public_path());
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('a4', 'landscape');
+        $dompdf->render();
+
+        $pageNumbers = [];
+        if (file_exists($discoveryFile)) {
+            $lines = file($discoveryFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $pageNumbers = array_map('intval', $lines);
+            unlink($discoveryFile);
+        }
+
+        return $pageNumbers;
+    }
+
+    /**
+     * Split inspection entries into page-aligned groups.
+     * Each group shares the same page → safe for rowspan.
+     */
+    private function groupInspectionsByPage($entries, $inspectionPageNumbers)
+    {
+        $result = [];
+        $inspRowIdx = 0;
+
+        foreach ($entries as $entry) {
+            if ($entry['entry_type'] !== 'inspeksi') {
+                $result[] = $entry;
+                continue;
+            }
+
+            // Group items by page number
+            $currentPage = null;
+            $currentGroup = [];
+
+            foreach ($entry['items'] as $item) {
+                $page = $inspectionPageNumbers[$inspRowIdx] ?? 1;
+                $inspRowIdx++;
+
+                if ($currentPage !== null && $page !== $currentPage) {
+                    // Page changed — save current group, start new
+                    $result[] = array_merge($entry, [
+                        'items' => $currentGroup,
+                        'is_page_group' => true,
+                    ]);
+                    $currentGroup = [];
+                }
+
+                $currentGroup[] = $item;
+                $currentPage = $page;
+            }
+
+            if (!empty($currentGroup)) {
+                $result[] = array_merge($entry, [
+                    'items' => $currentGroup,
+                    'is_page_group' => true,
+                ]);
+            }
+        }
+
+        return collect($result);
     }
 
     // ─── PIC REPORT ────────────────────────────────────────────────────────────

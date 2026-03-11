@@ -38,19 +38,7 @@ class ScanController extends Controller
         }
 
         if ($assetType === P3k::class) {
-            $inspection = Inspection::where('assetable_type', $assetType)
-                ->where('assetable_id', $asset->id)
-                ->whereIn('status', ['overdue', 'pending'])
-                ->orderByRaw("FIELD(status, 'overdue', 'pending') ASC")
-                ->orderBy('due_date', 'asc')
-                ->first();
-                
-            $inspectionId = $inspection ? $inspection->id : null;
-
-            return redirect()->route('p3k.menu', [
-                'id' => $asset->id, 
-                'inspection_id' => $inspectionId
-            ]);
+            return redirect()->route('p3k.menu', ['id' => $asset->id]);
         }
 
 
@@ -59,39 +47,30 @@ class ScanController extends Controller
         }
 
         $user = Auth::user();
-        $isK3 = optional($user->department)->name === 'K3';
+        $isK3Department = optional($user->department)->name === 'K3';
+        $hasK3Role = $user->hasRole('executor_k3');
 
         $inspection = Inspection::where('assetable_type', $assetType)
             ->where('assetable_id', $asset->id)
-            ->whereIn('status', ['pending', 'overdue', 'issue', 'need_revision', 'updated'])
-            ->where(function($query) use ($user, $isK3) {
+            ->whereIn('status', ['pending', 'overdue'])
+            ->where(function($query) use ($user, $isK3Department, $hasK3Role) {
+                // Anyone can see their own assigned tasks
                 $query->where('user_id', $user->id);
-                if ($isK3) {
+                
+                // K3 users can also see unassigned tasks
+                if ($isK3Department || $hasK3Role) {
                     $query->orWhereNull('user_id');
                 }
-            })->first();
+            })
+            ->orderByRaw("FIELD(status, 'overdue', 'pending') ASC")
+            ->orderBy('schedule_date', 'asc')
+            ->first();
 
         if ($inspection) {
-            activity()
-                ->causedBy(Auth::user())
-                ->withProperties([
-                    'asset_code' => $assetCode,
-                    'asset_type' => class_basename($assetType),
-                    'asset_id'   => $asset->id,
-                    'inspection_id' => $inspection->id,
-                ])
-                ->useLog('aktivitas-sistem')
-                ->log('Scan NFC: Aset ' . class_basename($assetType) . ' "' . $asset->code . '" ditemukan. Diarahkan ke form inspeksi.');
-
             return redirect()->route('inspections.execute', $inspection->id)
                 ->with('success', 'Aset cocok. Silakan isi laporan.');
         }
 
-        activity()
-            ->causedBy(Auth::user())
-            ->withProperties(['asset_code' => $assetCode, 'asset_type' => class_basename($assetType), 'asset_id' => $asset->id])
-            ->useLog('aktivitas-sistem')
-            ->log('Scan NFC: Aset ' . class_basename($assetType) . ' "' . $asset->code . '" tidak memiliki jadwal inspeksi aktif.');
 
         return redirect()->route('dashboard')->with('error', "Tidak ada jadwal tugas aktif untuk aset ini.");
     }

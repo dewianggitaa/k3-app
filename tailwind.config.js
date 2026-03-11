@@ -18,41 +18,42 @@ export default {
                 sans: ['Poppins', 'Figtree', ...defaultTheme.fontFamily.sans],
             },
             colors: {
-                // --- WARNA LAMA (TETAP ADA) ---
                 page: {
-                    DEFAULT: '#F1F0EC', // Beige kesayangan
-                    dark: '#1A1B1E', 
+                    DEFAULT: '#F6F8FA', // GitHub Light Page
+                    dark: '#0D1117',    // GitHub Dark Page
                 },
                 surface: {
-                    DEFAULT: '#FFFFFF',
-                    dark: '#25262B', 
+                    DEFAULT: '#FFFFFF', // GitHub Light Card
+                    dark: '#161B22',    // GitHub Dark Card
                 },
                 primary: {
-                    DEFAULT: '#4157A1', // Royal Blue kesayangan
-                    hover: '#344580',
-                    light: '#C5CAE4',
-                    dark: '#5C73C2',
+                    DEFAULT: '#1A365D', // Navy Blue
+                    hover: '#112240',   // Navy Dark Hover
+                    light: '#E2E8F0',   // Light fill
+                    dark: '#4A69A3',    // Navy Light (Dark Mode)
                 },
                 ink: {
-                    DEFAULT: '#51504A',
-                    light: '#9CA3AF',
-                    dark: '#E4E4E0',
+                    DEFAULT: '#1F2328', // GitHub Dark Text
+                    light: '#656D76',   // GitHub Muted Text
+                    dark: '#E6EDF3',    // GitHub Light Text (Dark Mode)
                 },
-                
-                // --- WARNA BARU (YANG DITAMBAHIN) ---
-                // "Ghost" = Abu-abu tipis ala Widelab buat Search Bar / Active State
                 ghost: {
-                    DEFAULT: '#F3F4F6', // Abu terang (Gray-100)
-                    hover: '#E5E7EB',   // Abu agak gelap dikit buat hover (Gray-200)
-                    dark: '#27272A',    // Abu gelap buat dark mode (Zinc-800)
+                    DEFAULT: '#EAEEF2', // Muted areas (darker than page)
+                    hover: '#D0D7DE',   // Borders, hover states
+                    dark: '#21262D',    // Dark ghost
                 },
-                
-                // Semantic Colors
-                danger: { DEFAULT: '#EB2D07' },
-                warning: { DEFAULT: '#D89921' },
-                success: { 
-                    DEFAULT: '#286137',
-                    dark: '#4BCE97',
+                'ghost-dark': '#30363D', // Dark ghost hover/border
+                danger: {
+                    DEFAULT: '#CF222E', // GitHub Red
+                    dark: '#F85149',    // GitHub Dark Red
+                },
+                warning: {
+                    DEFAULT: '#BF8700', // GitHub Yellow
+                    dark: '#D29922',    // GitHub Dark Yellow
+                },
+                success: {
+                    DEFAULT: '#1A7F37', // GitHub Green
+                    dark: '#3FB950',    // GitHub Dark Green
                 }
             }
         },

@@ -14,6 +14,7 @@ use App\Http\Controllers\InspectionExecutionController;
 use App\Http\Controllers\ScanController;
 use App\Http\Controllers\ChecklistParameterController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReportFormController;
 use App\Http\Controllers\AssetInspectionController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
@@ -74,19 +75,22 @@ Route::middleware('auth')->group(function () {
         
     Route::get('/{id}/restock', [P3kController::class, 'createRestock'])->name('p3k.restock');
     Route::post('/{id}/restock', [P3kController::class, 'storeUsage'])->name('p3k.store-restock');
+    Route::get('/p3k/{id}/execute-pending', [P3kController::class, 'executePending'])->name('p3k.execute-pending');
 
     Route::resource('checklist-parameters', App\Http\Controllers\ChecklistParameterController::class);
+
+    Route::resource('report-forms', ReportFormController::class)->except(['show', 'create', 'edit']);
+    Route::post('/report-forms/{report_form}/activate', [ReportFormController::class, 'activate'])->name('report-forms.activate');
+    Route::get('/report-forms/{report_form}/preview', [ReportFormController::class, 'preview'])->name('report-forms.preview');
 
     Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->name('reports.index');
     Route::get('/reports/export', [App\Http\Controllers\ReportController::class, 'exportPdf'])->name('reports.export');
     Route::get('/reports/pic', [App\Http\Controllers\ReportController::class, 'picIndex'])->name('reports.pic');
 
-    // User & Role Management
     Route::resource('users', UserController::class)->except(['show', 'create', 'edit']);
     Route::patch('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
     Route::resource('roles', RoleController::class)->except(['show', 'create', 'edit', 'index']);
 
-    // Audit Trail
     Route::get('/audit-trail', [AuditTrailController::class, 'index'])->name('audit-trail.index');
 });
 

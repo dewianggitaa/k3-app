@@ -8,19 +8,23 @@ import {
 import Swal from 'sweetalert2';
 import MainLayout from '@/Layouts/MainLayout.vue';
 import MappingNavigation from '@/Components/MappingNavigation.vue';
+import MappingRoomList from '@/Components/MappingRoomList.vue';
 
 const props = defineProps({
     floor: Object,
     can: Object,
 });
 
-// --- State Management ---
 const selectedRoom = ref(null);
 const isClosed = ref(false);
 const zoomLevel = ref(1);
 const isDragging = ref(false);
 const offset = ref({ x: 0, y: 0 });
 const startPan = ref({ x: 0, y: 0 });
+const isBottomSheetOpen = ref(false);
+const startPinchDist = ref(0);
+const startZoomLevel = ref(1);
+const hasDragged = ref(false);
 
 const form = useForm({
     room_id: '',
@@ -28,7 +32,7 @@ const form = useForm({
 });
 
 const mapStyle = computed(() => {
-    // Kursor Crosshair saat mode edit
+
     const blackCrosshair = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='1' x2='12' y2='23'></line><line x1='1' y1='12' x2='23' y2='12'></line></svg>") 12 12, crosshair`;
 
     let cursorStyle = 'grab';
@@ -44,12 +48,8 @@ const mapStyle = computed(() => {
     };
 });
 
-// --- Mouse & Zoom Logic ---
 const handleMouseDown = (event) => {
-    // Tombol tengah mouse, ATAU
-    // Tombol kiri jika:
-    // 1. Tidak ada ruangan terpilih, ATAU
-    // 2. User dalam mode read-only (!props.can?.manage)
+
     if (event.button === 1 || (event.button === 0 && (!selectedRoom.value || !props.can?.manage))) {
         isDragging.value = true;
         startPan.value = { 
@@ -62,10 +62,58 @@ const handleMouseDown = (event) => {
 
 const handleMouseMove = (event) => {
     if (!isDragging.value) return;
-    offset.value = {
-        x: event.clientX - startPan.value.x,
-        y: event.clientY - startPan.value.y
-    };
+    const newX = event.clientX - startPan.value.x;
+    const newY = event.clientY - startPan.value.y;
+    if (Math.abs(newX - offset.value.x) > 5 || Math.abs(newY - offset.value.y) > 5) {
+        hasDragged.value = true;
+    }
+    offset.value = { x: newX, y: newY };
+};
+
+const handleTouchStart = (event) => {
+    if (event.touches.length === 1) {
+        isDragging.value = true;
+        startPan.value = { 
+            x: event.touches[0].clientX - offset.value.x, 
+            y: event.touches[0].clientY - offset.value.y 
+        };
+    } else if (event.touches.length === 2) {
+        isDragging.value = false;
+        const dist = Math.hypot(
+            event.touches[0].clientX - event.touches[1].clientX, 
+            event.touches[0].clientY - event.touches[1].clientY
+        );
+        startPinchDist.value = dist;
+        startZoomLevel.value = zoomLevel.value;
+    }
+};
+
+const handleTouchMove = (event) => {
+    if (event.touches.length === 1 && isDragging.value) {
+        const newX = event.touches[0].clientX - startPan.value.x;
+        const newY = event.touches[0].clientY - startPan.value.y;
+        if (Math.abs(newX - offset.value.x) > 5 || Math.abs(newY - offset.value.y) > 5) {
+            hasDragged.value = true;
+        }
+        offset.value = { x: newX, y: newY };
+    } else if (event.touches.length === 2) {
+        hasDragged.value = true;
+        event.preventDefault();
+        const dist = Math.hypot(
+            event.touches[0].clientX - event.touches[1].clientX, 
+            event.touches[0].clientY - event.touches[1].clientY
+        );
+        if (startPinchDist.value > 0) {
+            const scaleChange = dist / startPinchDist.value;
+            let newZoom = startZoomLevel.value * scaleChange;
+            zoomLevel.value = Math.min(Math.max(newZoom, 0.4), 5);
+        }
+    }
+};
+
+const handleTouchEnd = () => {
+    isDragging.value = false;
+    startPinchDist.value = 0;
 };
 
 const stopDragging = () => { isDragging.value = false; };
@@ -85,8 +133,11 @@ const resetZoom = () => {
     offset.value = { x: 0, y: 0 };
 };
 
-// --- Mapping Logic ---
 const handleMapClick = (event) => {
+    if (hasDragged.value) {
+        hasDragged.value = false;
+        return;
+    }
     if (!props.can?.manage) return;
     if (isDragging.value || !selectedRoom.value || isClosed.value) return;
 
@@ -94,7 +145,6 @@ const handleMapClick = (event) => {
     const xPercent = ((event.clientX - rect.left) / rect.width) * 100;
     const yPercent = ((event.clientY - rect.top) / rect.height) * 100;
 
-    // Auto-close polygon
     if (form.coordinates.length >= 3) {
         const firstPoint = form.coordinates[0];
         const distance = Math.sqrt(Math.pow(xPercent - firstPoint.x, 2) + Math.pow(yPercent - firstPoint.y, 2));
@@ -112,7 +162,8 @@ const handleMapClick = (event) => {
 };
 
 const selectRoom = (room) => {
-    // Unselect logic
+    isBottomSheetOpen.value = false;
+
     if (selectedRoom.value?.id === room.id) {
         selectedRoom.value = null;
         form.reset();
@@ -153,11 +204,9 @@ const hexToRgba = (hex, opacity) => {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
-// --- Lifecycle ---
 onMounted(() => {
     window.addEventListener('mouseup', stopDragging);
 
-    // Auto-Select dari URL
     const params = new URLSearchParams(window.location.search);
     const highlightRoomId = params.get('highlight_room');
 
@@ -165,7 +214,7 @@ onMounted(() => {
         const targetRoom = props.floor.rooms.find(r => r.id == highlightRoomId);
         if (targetRoom) {
             selectRoom(targetRoom);
-            // NOTIFIKASI DIHAPUS SESUAI REQUEST
+
         }
     }
 });
@@ -179,71 +228,58 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
     <MainLayout>
         <template #header-title>
             <div class="flex items-center gap-4">
-                <Link :href="route('floors.index')" class="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                    <ChevronLeft class="w-5 h-5 text-black" />
+                <Link :href="route('floors.index')" class="p-2 hover:bg-ghost rounded-full transition-colors">
+                    <ChevronLeft class="w-5 h-5 text-ink" />
                 </Link>
                 <div>
-                    <h2 class="font-bold text-lg text-gray-800 leading-tight">Pemetaan Area Ruangan</h2>
-                    <p class="text-xs text-gray-500">Lantai: {{ floor.name }}</p>
+                    <h2 class="font-bold text-lg text-ink leading-tight">Pemetaan Area Ruangan</h2>
+                    <p class="text-xs text-ink-light">Lantai: {{ floor.name }}</p>
                 </div>
             </div>
         </template>
 
         <template #header-nav>
-            <div class="w-full bg-white border-b border-gray-100 px-6"> 
+            <div class="w-full bg-surface border-b border-ghost-hover px-4"> 
                 <MappingNavigation :floorId="floor.id" />
             </div>
         </template>
 
-        <div v-if="!floor.map_image_path" class="p-6 m-6 bg-yellow-50 border border-yellow-200 rounded-xl flex items-center gap-4">
-            <div class="p-3 bg-yellow-100 rounded-full">
-                <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+        <div v-if="!floor.map_image_path" class="p-4 m-4 bg-warning/10 border border-warning/30 rounded-md flex items-center gap-4">
+            <div class="p-3 bg-warning/20 rounded-full">
+                <svg class="w-6 h-6 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             </div>
             <div>
                 <h3 class="text-lg font-bold text-yellow-800">Denah Belum Diupload</h3>
-                <p class="text-sm text-yellow-700">Lantai ini belum memiliki gambar denah. Silakan tambahkan file gambar denah di halaman Master Data Lantai terlebih dahulu agar bisa melakukan pemetaan ruangan.</p>
+                <p class="text-sm text-warning">Lantai ini belum memiliki gambar denah. Silakan tambahkan file gambar denah di halaman Master Data Lantai terlebih dahulu agar bisa melakukan pemetaan ruangan.</p>
             </div>
         </div>
 
-        <div v-else class="flex flex-col lg:flex-row gap-6 h-[calc(100vh-180px)] p-2">
-            <div class="w-full lg:w-72 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
-                <div class="p-4 bg-gray-50 border-b font-bold text-gray-700 flex items-center gap-2">
-                    <Box class="w-4 h-4 text-indigo-500" /> Daftar Ruangan
+        <div v-else class="flex flex-col lg:flex-row h-full lg:h-[calc(100vh-180px)] p-2 gap-4 relative">
+            <div class="hidden lg:flex w-full lg:w-72 bg-surface rounded-md shadow-sm border border-ghost-hover flex-col overflow-hidden">
+                <div class="p-4 bg-ghost border-b font-bold text-ink dark:text-ink-dark/90 flex items-center gap-2 shrink-0">
+                    <Box class="w-4 h-4 text-primary" /> Daftar Ruangan
                 </div>
                 
-                <div class="flex-1 overflow-y-auto p-3 space-y-2">
-                    <button 
-                        v-for="room in floor.rooms" :key="room.id" @click="selectRoom(room)"
-                        :class="['w-full text-left px-4 py-3 rounded-xl text-sm border flex justify-between items-center transition-all shadow-sm',
-                                  selectedRoom?.id === room.id ? 'bg-indigo-50 border-indigo-500 text-indigo-700 ring-2 ring-indigo-500/10' : 'bg-white border-gray-100 text-gray-600 hover:border-indigo-200']"
-                    >
-                        <div class="flex items-center gap-3">
-                            <div class="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <span class="font-medium">{{ room.name }}</span>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <CheckCircle2 v-if="room.coordinates?.length > 0" class="w-4 h-4 text-green-500" />
-                            <X v-if="selectedRoom?.id === room.id" class="w-4 h-4 text-indigo-400" />
-                        </div>
-                    </button>
+                <div class="flex-1 overflow-y-auto p-3">
+                    <MappingRoomList :rooms="floor.rooms" :selectedRoom="selectedRoom" @select="selectRoom" />
                 </div>
 
-                <div v-if="selectedRoom" class="p-4 bg-gray-50 border-t space-y-3">
-                    <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                <div v-if="selectedRoom" class="p-4 bg-ghost border-t space-y-3 shrink-0">
+                    <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-ink-light">
                         <span>Status:</span>
-                        <span :class="isClosed ? 'text-green-600' : 'text-orange-500'">{{ isClosed ? 'Area Terkunci' : (can?.manage ? 'Proses Gambar' : 'Hanya Lihat') }}</span>
+                        <span :class="isClosed ? 'text-success' : 'text-warning'">{{ isClosed ? 'Area Terkunci' : (can?.manage ? 'Proses Gambar' : 'Hanya Lihat') }}</span>
                     </div>
                     <template v-if="can?.manage">
                         <div class="flex gap-2">
-                            <button @click="undoLastPoint" class="flex-1 bg-white border border-gray-200 p-2 rounded-lg text-xs font-semibold hover:bg-gray-100 flex items-center justify-center gap-1 transition-colors">
+                            <button @click="undoLastPoint" class="flex-1 bg-surface border border-ghost-hover p-2 rounded-md text-xs font-semibold hover:bg-ghost flex items-center justify-center gap-1 transition-colors">
                                 <Undo2 class="w-3 h-3"/> Undo
                             </button>
-                            <button @click="resetPoints" class="flex-1 bg-white border border-red-100 text-red-500 p-2 rounded-lg text-xs font-semibold hover:bg-red-50 flex items-center justify-center gap-1 transition-colors">
+                            <button @click="resetPoints" class="flex-1 bg-surface border border-red-100 text-danger p-2 rounded-md text-xs font-semibold hover:bg-danger/10 flex items-center justify-center gap-1 transition-colors">
                                 <RotateCcw class="w-3 h-3"/> Reset
                             </button>
                         </div>
                         <button @click="submitMapping" :disabled="!isClosed || form.processing"
-                            class="w-full bg-indigo-600 text-white p-3 rounded-xl text-sm font-bold disabled:bg-gray-300 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                            class="w-full bg-primary text-white p-3 rounded-md text-sm font-bold disabled:bg-gray-300 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                             <Save class="w-4 h-4" /> Simpan Pemetaan
                         </button>
                     </template>
@@ -251,25 +287,29 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
             </div>
 
             <div 
-                class="flex-1 bg-slate-200 rounded-2xl relative overflow-hidden flex items-center justify-center border-2 border-slate-300 shadow-inner"
+                class="flex-1 bg-slate-200 rounded-md relative overflow-hidden flex items-center justify-center border-2 border-ghost-hover shadow-inner w-full min-h-[60vh] lg:min-h-0 touch-none"
                 @mousedown="handleMouseDown"
                 @mousemove="handleMouseMove"
                 @wheel="handleWheel"
+                @touchstart.passive="handleTouchStart"
+                @touchmove="handleTouchMove"
+                @touchend="handleTouchEnd"
+                @touchcancel="handleTouchEnd"
             >
-                <div class="absolute top-6 right-6 z-50 flex flex-col gap-2">
-                    <button @click="zoomLevel = Math.min(zoomLevel + 0.5, 5)" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 text-gray-600 transition-transform active:scale-95"><ZoomIn/></button>
-                    <button @click="resetZoom" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 text-gray-600 transition-transform active:scale-95"><Maximize/></button>
-                    <button @click="zoomLevel = Math.max(zoomLevel - 0.5, 0.4)" class="p-3 bg-white rounded-xl shadow-xl hover:bg-gray-50 text-gray-600 transition-transform active:scale-95"><ZoomOut/></button>
+                <div class="hidden lg:flex absolute top-6 right-6 z-50 flex-col gap-2">
+                    <button @click="zoomLevel = Math.min(zoomLevel + 0.5, 5)" class="p-3 bg-surface rounded-md shadow-xl hover:bg-ghost text-ink-light transition-transform active:scale-95"><ZoomIn/></button>
+                    <button @click="resetZoom" class="p-3 bg-surface rounded-md shadow-xl hover:bg-ghost text-ink-light transition-transform active:scale-95"><Maximize/></button>
+                    <button @click="zoomLevel = Math.max(zoomLevel - 0.5, 0.4)" class="p-3 bg-surface rounded-md shadow-xl hover:bg-ghost text-ink-light transition-transform active:scale-95"><ZoomOut/></button>
                 </div>
 
                 <div 
-                    class="relative inline-block bg-white shadow-2xl rounded-sm overflow-hidden select-none"
+                    class="relative inline-block bg-surface shadow-2xl rounded-md overflow-hidden select-none"
                     :style="mapStyle"
                 >
                     <div class="relative flex" @click="handleMapClick">
                         <img 
                             :src="'/storage/floors/' + floor.map_image_path" 
-                            class="max-w-none h-[75vh] w-auto block pointer-events-none" 
+                            class="max-w-full lg:max-w-none lg:h-[75vh] w-auto md:w-full lg:w-auto block pointer-events-none" 
                             draggable="false"
                         />
                         
@@ -305,10 +345,57 @@ onUnmounted(() => window.removeEventListener('mouseup', stopDragging));
                     </div>
                 </div>
                 
-                <div class="absolute bottom-6 left-6 bg-black/60 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md pointer-events-none border border-white/20">
+                <div class="absolute bottom-6 left-6 lg:left-6 bg-black/60 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest backdrop-blur-md pointer-events-none border border-white/20 z-10 transition-transform" :class="isBottomSheetOpen ? '-translate-y-24' : ''">
                     <span class="text-indigo-300">{{ selectedRoom ? selectedRoom.name : 'View Mode' }}</span>
                     <span class="mx-2 opacity-30">|</span>
                     Zoom: {{ Math.round(zoomLevel * 100) }}%
+                </div>
+
+                <button 
+                    @click="isBottomSheetOpen = true"
+                    class="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 bg-primary text-white px-6 py-2.5 rounded-full shadow-lg z-20 font-bold text-sm flex items-center gap-2"
+                >
+                    <Box class="w-4 h-4" /> Daftar Ruangan
+                </button>
+            </div>
+
+            <!-- Bottom Sheet -->
+            <div v-if="isBottomSheetOpen" class="lg:hidden fixed inset-0 z-[100] flex flex-col justify-end">
+                <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="isBottomSheetOpen = false"></div>
+                <div class="relative bg-surface w-full rounded-t-2xl shadow-xl flex flex-col max-h-[80vh]">
+                    <div class="p-4 border-b flex justify-between items-center bg-ghost rounded-t-2xl shrink-0">
+                        <div class="font-bold text-ink flex items-center gap-2">
+                            <Box class="w-4 h-4 text-primary" /> Daftar Ruangan
+                        </div>
+                        <button @click="isBottomSheetOpen = false" class="p-1 rounded-full text-ink-light hover:bg-surface border border-transparent">
+                            <X class="w-5 h-5" />
+                        </button>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto p-4 shrink-1">
+                        <MappingRoomList :rooms="floor.rooms" :selectedRoom="selectedRoom" @select="selectRoom" />
+                    </div>
+
+                    <div v-if="selectedRoom" class="p-4 bg-ghost border-t space-y-3 shrink-0">
+                        <div class="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-ink-light">
+                            <span>Status:</span>
+                            <span :class="isClosed ? 'text-success' : 'text-warning'">{{ isClosed ? 'Area Terkunci' : (can?.manage ? 'Proses Gambar' : 'Hanya Lihat') }}</span>
+                        </div>
+                        <template v-if="can?.manage">
+                            <div class="flex gap-2">
+                                <button @click="undoLastPoint" class="flex-1 bg-surface border border-ghost-hover p-2 rounded-md text-xs font-semibold hover:bg-ghost flex items-center justify-center gap-1 transition-colors">
+                                    <Undo2 class="w-3 h-3"/> Undo
+                                </button>
+                                <button @click="resetPoints" class="flex-1 bg-surface border border-red-100 text-danger p-2 rounded-md text-xs font-semibold hover:bg-danger/10 flex items-center justify-center gap-1 transition-colors">
+                                    <RotateCcw class="w-3 h-3"/> Reset
+                                </button>
+                            </div>
+                            <button @click="submitMapping" :disabled="!isClosed || form.processing"
+                                class="w-full bg-primary text-white p-3 rounded-md text-sm font-bold disabled:bg-gray-300 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                                <Save class="w-4 h-4" /> Simpan Pemetaan
+                            </button>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>

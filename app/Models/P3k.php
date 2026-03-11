@@ -14,6 +14,7 @@ class P3k extends Model
     {
         return LogOptions::defaults()
             ->logOnly(['code', 'p3k_type_id', 'room_id', 'status', 'location_data'])
+            ->logOnlyDirty()
             ->setDescriptionForEvent(fn(string $eventName) => "P3K {$eventName}")
             ->useLogName('aset');
     }

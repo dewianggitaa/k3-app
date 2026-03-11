@@ -10,7 +10,8 @@ import {
     Layers,
     DoorOpen,
     Box,
-    Menu,
+    Menu,        // Icon Hamburger untuk mobile
+    X,           // Icon Close untuk mobile
     CalendarClock,
     ClipboardCheck, 
     ListCheck,
@@ -18,6 +19,8 @@ import {
     FileBarChart,
     Users,
     ClipboardList,
+    FileStack,
+    FileText
 } from 'lucide-vue-next';
 
 import ThemeToggle from '@/Components/ThemeToggle.vue'; 
@@ -26,12 +29,10 @@ const page = usePage();
 const user = computed(() => page.props.auth.user);
 const name = computed(() => user.value?.name?.split(' ')[0]);
 
-// Helper: cek apakah user memiliki permission tertentu
 const can = (permission) => {
     return page.props.auth.permissions?.includes(permission) ?? false;
 };
 
-// Helper: cek apakah user memiliki salah satu dari beberapa permission
 const canAny = (...permissions) => {
     return permissions.some(p => can(p));
 };
@@ -42,7 +43,6 @@ const allMenuItems = [
         icon: LayoutDashboard, 
         route: 'dashboard',
         active: 'dashboard',
-        // dashboard dikesampingkan dulu — tampilkan selalu
         permission: null,
     },
     { 
@@ -50,12 +50,14 @@ const allMenuItems = [
         icon: Database, 
         route: null,
         active: 'master.*', 
-        permission: 'view-master-data|manage-buildings|manage-floors|manage-rooms|manage-assets',
+        permission: 'view-master-data|manage-buildings|manage-floors|manage-rooms|manage-assets|manage-checklist-parameters|manage-report-forms',
         children: [
             { name: 'Data Gedung',        route: 'buildings.index', icon: Building2 }, 
             { name: 'Data Lantai',        route: 'floors.index',    icon: Layers }, 
             { name: 'Data Ruangan/Area',  route: 'rooms.index',     icon: DoorOpen },
             { name: 'Data Asset',         route: 'apars.index',     icon: Box },
+            { name: 'Checklist Parameter', route: 'checklist-parameters.index', icon: ListCheck },
+            { name: 'Format Laporan',     route: 'report-forms.index', icon: FileText },
         ]
     },
     {
@@ -75,22 +77,19 @@ const allMenuItems = [
         icon: UserCheck,
         route: 'inspections.open',
         permission: 'execute-inspections',
+        show: () => user.value?.department?.name === 'K3' || user.value?.roles?.some(r => r.name === 'executor_k3'),
     },
     {
         name: 'Tugas PIC',
         icon: UserCheck,
         route: 'inspections.my-tasks',
-        permission: 'view-assigned-inspections',
+        permission: 'execute-inspections',
+        show: () => user.value?.department?.name !== 'K3' && !user.value?.roles?.some(r => r.name === 'executor_k3'),
     },
-    {
-        name: 'Checklist Parameter',
-        icon: ListCheck,
-        route: 'checklist-parameters.index',
-        permission: 'manage-checklist-parameters',
-    },
+
     {
         name: 'Riwayat Laporan',
-        icon: ListCheck,
+        icon: FileStack,
         route: 'reports.index',
         permission: 'view-reports',
     },
@@ -121,11 +120,14 @@ const allMenuItems = [
     },
 ];
 
-// Filter menu berdasarkan permission
 const menuItems = computed(() => {
     return allMenuItems.filter(item => {
+        // First check custom visibility logic if defined
+        if (item.show !== undefined && !item.show()) return false;
+
+        // Then check permissions
         if (!item.permission) return true; // null = selalu tampil
-        // Bisa berisi beberapa permission dipisah '|', tampilkan jika punya salah satu
+
         const perms = item.permission.split('|');
         return perms.some(p => can(p));
     });
@@ -133,38 +135,61 @@ const menuItems = computed(() => {
 
 const isHovered = ref(false);
 const expandedMenu = ref(null);
+const isMobileMenuOpen = ref(false); // State untuk mengatur buka/tutup menu di Mobile
 
 const isActive = (routeName) => route().current(routeName);
 const isParentActive = (pattern) => route().current(pattern);
 
 const toggleSubmenu = (menuName) => {
-    if (!isHovered.value) isHovered.value = true;
+    if (!isHovered.value && !isMobileMenuOpen.value) {
+        isHovered.value = true;
+    }
     expandedMenu.value = expandedMenu.value === menuName ? null : menuName;
 };
 </script>
 
 <template>
-    <div class="min-h-screen flex bg-page dark:bg-page-dark transition-colors duration-300 font-sans">
+    <div class="min-h-screen flex bg-page dark:bg-page-dark transition-colors duration-300 font-sans relative">
         
+        <div 
+            v-if="isMobileMenuOpen" 
+            @click="isMobileMenuOpen = false"
+            class="fixed inset-0 bg-ink/50 dark:bg-black/50 backdrop-blur-sm z-40 md:hidden transition-opacity"
+        ></div>
+
         <aside 
             @mouseenter="isHovered=true"
             @mouseleave="isHovered=false; expandedMenu=null"
-            class="fixed top-0 left-0 h-screen bg-surface dark:bg-surface-dark border-r border-ghost dark:border-gray-700 z-50 transition-all duration-300 ease-in-out flex flex-col overflow-hidden shadow-sm"
-            :class="[ isHovered ? 'w-60 shadow-2xl' : 'w-14' ]" 
+            class="fixed top-0 left-0 h-screen bg-surface dark:bg-surface-dark border-r border-ghost dark:border-ghost-dark z-50 transition-all duration-300 ease-in-out flex flex-col overflow-hidden shadow-sm"
+            :class="[ 
+                isHovered ? 'md:w-60 md:shadow-2xl' : 'md:w-14',
+                'w-[260px]',
+                isMobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full md:translate-x-0'
+            ]" 
         >
             
-            <div class="h-12 flex items-center justify-center flex-shrink-0 border-b border-ghost dark:border-gray-700 bg-surface dark:bg-surface-dark z-10">
-                <div class="flex items-center justify-center w-8 h-8 transform transition-transform duration-300"
-                     :class="[ isHovered ? 'scale-100' : 'scale-100' ]">
-                    <span class="font-black text-xl text-primary dark:text-primary-dark tracking-tighter">
-                        K3
-                    </span>
-                </div>
+            <div class="h-14 flex items-center flex-shrink-0 border-b border-ghost dark:border-ghost-dark bg-surface dark:bg-surface-dark z-10 px-4 md:px-0"
+                 :class="[ isHovered || isMobileMenuOpen ? 'justify-between md:justify-start' : 'justify-center' ]">
                 
-                <div class="overflow-hidden transition-all duration-300 origin-left" 
-                     :class="[ isHovered ? 'w-auto opacity-100 ml-2' : 'w-0 opacity-0' ]">
-                    <span class="font-bold text-xs text-ink dark:text-ink-dark tracking-tight uppercase">Maintenance</span>
+                <div class="flex items-center" :class="[ isHovered || isMobileMenuOpen ? 'md:ml-4' : '' ]">
+                    <div class="flex items-center justify-center w-8 h-8 flex-shrink-0">
+                        <span class="font-black text-xl text-primary dark:text-primary-dark tracking-tighter">
+                            K3
+                        </span>
+                    </div>
+                    
+                    <div class="overflow-hidden transition-all duration-300 origin-left flex items-center" 
+                         :class="[ isHovered || isMobileMenuOpen ? 'w-auto opacity-100 ml-2' : 'w-0 opacity-0 md:hidden' ]">
+                        <span class="font-bold text-xs text-ink dark:text-ink-dark tracking-tight uppercase">Maintenance</span>
+                    </div>
                 </div>
+
+                <button 
+                    @click="isMobileMenuOpen = false"
+                    class="md:hidden p-1.5 text-ink/60 hover:text-ink rounded-md hover:bg-ghost transition-colors flex-shrink-0"
+                >
+                    <X class="w-5 h-5" />
+                </button>
             </div>
 
             <div class="flex-1 py-2 overflow-y-auto custom-scrollbar px-1.5 space-y-0.5">
@@ -175,6 +200,7 @@ const toggleSubmenu = (menuName) => {
                         :href="route(item.route)"
                         :method="item.method || 'get'" 
                         as="button"
+                        @click="isMobileMenuOpen = false"
                         class="w-full flex items-center px-2 py-2 rounded-md group transition-all duration-200 relative"
                         :class="[ 
                             isActive(item.route) 
@@ -187,11 +213,11 @@ const toggleSubmenu = (menuName) => {
                         </div>
                         
                         <span class="ml-2 text-xs whitespace-nowrap transition-all duration-300 origin-left"
-                            :class="[ isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 w-0 overflow-hidden' ]">
+                            :class="[ isHovered || isMobileMenuOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 w-0 md:overflow-hidden' ]">
                             {{ item.name }}
                         </span>
 
-                        <div v-if="!isHovered" class="absolute left-10 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap shadow-lg translate-x-1">
+                        <div v-if="!isHovered && !isMobileMenuOpen" class="hidden md:block absolute left-10 bg-gray-900 text-white text-[10px] px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 whitespace-nowrap shadow-lg translate-x-1">
                             {{ item.name }}
                         </div>
                     </Link>
@@ -211,25 +237,26 @@ const toggleSubmenu = (menuName) => {
                                     <component :is="item.icon" :stroke-width="2" class="w-4 h-4 transition-transform group-hover:scale-110" />
                                 </div>
                                 <span class="ml-2 text-xs whitespace-nowrap transition-all duration-300 origin-left"
-                                    :class="[ isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 w-0 overflow-hidden' ]">
+                                    :class="[ isHovered || isMobileMenuOpen ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 w-0 md:overflow-hidden' ]">
                                     {{ item.name }}
                                 </span>
                             </div>
                             <ChevronRight 
-                                v-if="isHovered"
+                                v-if="isHovered || isMobileMenuOpen"
                                 class="w-3 h-3 transition-transform duration-200"
                                 :class="{ 'rotate-90': expandedMenu === item.name }"
                             />
                         </button>
 
                         <div 
-                            v-show="(expandedMenu === item.name || isParentActive(item.active)) && isHovered" 
-                            class="ml-2 mt-0.5 space-y-0.5 border-l border-ghost dark:border-gray-700 pl-2 overflow-hidden"
+                            v-show="(expandedMenu === item.name || isParentActive(item.active)) && (isHovered || isMobileMenuOpen)" 
+                            class="ml-2 mt-0.5 space-y-0.5 border-l border-ghost dark:border-ghost-dark pl-2 overflow-hidden"
                         >
                             <Link 
                                 v-for="(child, cIndex) in item.children" 
                                 :key="cIndex"
                                 :href="route(child.route)"
+                                @click="isMobileMenuOpen = false"
                                 class="flex items-center px-2 py-1.5 rounded-md text-xs transition-colors duration-200"
                                 :class="[
                                     isActive(child.route)
@@ -247,14 +274,16 @@ const toggleSubmenu = (menuName) => {
 
             <Link 
                 :href="route('profile.edit')" 
-                class="h-12 flex items-center justify-center border-t border-ghost dark:border-gray-700 bg-page/50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 cursor-pointer"
+                class="h-14 flex items-center border-t border-ghost dark:border-ghost-dark bg-page/50 dark:bg-surface-dark/50 hover:bg-ghost dark:hover:bg-ghost-dark transition-colors duration-200 cursor-pointer"
+                :class="[ isHovered || isMobileMenuOpen ? 'justify-start px-4' : 'justify-center' ]"
             >
-                <div class="flex items-center px-2">
+                <div class="flex items-center">
                     <div class="w-6 h-6 rounded-md bg-gradient-to-tr from-primary to-purple-500 flex items-center justify-center text-white font-bold text-[9px] shadow-sm flex-shrink-0">
                         {{ user?.name ? user.name[0] : 'U' }}
                     </div>
                     
-                    <div class="overflow-hidden transition-all duration-300 ml-2" :class="[ isHovered ? 'opacity-100 w-auto' : 'opacity-0 w-0' ]">
+                    <div class="overflow-hidden transition-all duration-300 ml-2 flex items-center" 
+                         :class="[ isHovered || isMobileMenuOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 md:hidden' ]">
                         <p class="text-[11px] font-bold text-ink dark:text-ink-dark whitespace-nowrap truncate w-24">
                             {{ user?.name }}
                         </p>
@@ -263,20 +292,21 @@ const toggleSubmenu = (menuName) => {
             </Link>
         </aside>
 
-        <div class="flex-shrink-0 transition-all duration-300 hidden md:block" 
-             :class="[ isHovered ? 'w-60' : 'w-14' ]">
-        </div>
+        <div class="flex-shrink-0 hidden md:block w-14 z-0"></div>
 
-        <main class="flex-1 min-w-0 overflow-x-hidden">
-            <header class="min-h-[3rem] bg-surface dark:bg-surface-dark border-b border-ghost dark:border-gray-700 flex flex-col sticky top-0 z-0 transition-colors duration-300">
-    
-                <div class="flex justify-between items-center px-6 py-2">
-                    <div class="text-ink dark:text-ink-dark tracking-wide flex-1">
+        <main class="flex-1 min-w-0 overflow-x-hidden flex flex-col min-h-screen">
+            <header class="min-h-[3.5rem] bg-surface dark:bg-surface-dark border-b border-ghost dark:border-ghost-dark flex flex-col sticky top-0 z-30 transition-colors duration-300">
+                
+                <div class="flex items-center px-4 py-2 h-14 gap-3">
+                    <button 
+                        @click="isMobileMenuOpen = true"
+                        class="md:hidden p-2 -ml-2 rounded-md text-ink/80 hover:bg-ghost dark:hover:bg-ghost-dark transition-colors flex-shrink-0"
+                    >
+                        <Menu class="w-5 h-5" />
+                    </button>
+
+                    <div class="text-ink dark:text-ink-dark tracking-wide font-semibold text-sm sm:text-base truncate">
                         <slot name="header-title" /> 
-                    </div>
-
-                    <div class="flex items-center gap-4">
-                        <ThemeToggle />
                     </div>
                 </div>
 
@@ -285,7 +315,7 @@ const toggleSubmenu = (menuName) => {
                 </div>
             </header>
 
-            <div class="p-6">
+            <div class="p-4 flex-1">
                 <slot/>
             </div>
         </main>

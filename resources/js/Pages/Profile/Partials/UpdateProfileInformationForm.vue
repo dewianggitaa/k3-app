@@ -24,11 +24,11 @@ const form = useForm({
 <template>
     <section>
         <header>
-            <h2 class="text-lg font-medium text-gray-900">
+            <h2 class="text-lg font-medium text-ink">
                 Profile Information
             </h2>
 
-            <p class="mt-1 text-sm text-gray-600">
+            <p class="mt-1 text-sm text-ink-light">
                 Update your account's profile information and email address.
             </p>
         </header>
@@ -64,7 +64,7 @@ const form = useForm({
                 >
                     <p
                         v-if="form.recentlySuccessful"
-                        class="text-sm text-gray-600"
+                        class="text-sm text-ink-light"
                     >
                         Saved.
                     </p>

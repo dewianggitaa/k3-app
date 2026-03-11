@@ -46,7 +46,7 @@ class InspectionController extends Controller
         return Inertia::render('Inspections/Index', [
             'inspections' => $query
                 ->orderByRaw("FIELD(status, 'overdue', 'pending', 'completed') ASC")
-                ->orderBy('schedule_date', 'desc') 
+                ->orderBy('schedule_date', 'asc') 
                 ->paginate(10)
                 ->withQueryString(),
             'buildings'   => Building::select('id', 'name')->orderBy('name')->get(),
@@ -66,7 +66,7 @@ class InspectionController extends Controller
         $query = Inspection::with([
             'schedule', 
             'assetable.room.floor.building',
-            'user' // Load user untuk ditampilkan siapa yang mengerjakan
+            'user'
         ]);
         
         $query->where(function($q) {
