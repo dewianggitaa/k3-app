@@ -1,71 +1,76 @@
 @extends('pdf.layout')
 
 @section('content')
+
+    <div style="margin-bottom: 10px; font-size: 12px; line-height: 1.8;">
+        <table style="border: none; width: auto;">
+            @if($selectedAsset !== 'all')
+            <tr>
+                <td style="border: none; padding: 2px 0; width: 140px;">NO OHB / IHB</td>
+                <td style="border: none; padding: 2px 0;">: <strong>{{ $selectedAsset }}</strong></td>
+            </tr>
+            <tr>
+                <td style="border: none; padding: 2px 0;">LOKASI</td>
+                <td style="border: none; padding: 2px 0;">: <strong>{{ $roomName ?: '-' }}</strong></td>
+            </tr>
+            @else
+            <tr>
+                <td style="border: none; padding: 2px 0; width: 140px;">LOKASI</td>
+                <td style="border: none; padding: 2px 0;">: <strong>Semua Lokasi</strong></td>
+            </tr>
+            @endif
+            <tr>
+                <td style="border: none; padding: 2px 0;">TAHUN</td>
+                <td style="border: none; padding: 2px 0;">: <strong>{{ $yearRange ?: '-' }}</strong></td>
+            </tr>
+        </table>
+    </div>
+
     <table>
         <thead>
             <tr>
-                <th width="5%">No</th>
-                @if($selectedAsset === 'all') <th width="12%">Hidran</th> @endif
-                <th width="15%">Periode Pemeriksaan</th>
-                <th width="18%">Data Pelapor (PIC)</th>
-                <th width="{{ $selectedAsset === 'all' ? '28%' : '35%' }}">Hasil Inspeksi Hydrant</th>
-                <th width="{{ $selectedAsset === 'all' ? '22%' : '27%' }}">Catatan</th>
-                <th width="12%">Kondisi</th>
+                <th width="4%" style="text-align: center;">No</th>
+                @if($selectedAsset === 'all')
+                    <th width="8%" style="text-align: center;">NO OHB/IHB</th>
+                @endif
+                <th width="10%" style="text-align: center;">TANGGAL</th>
+                
+                @foreach($checklistCols as $col)
+                    <th style="text-align: center;">{{ strtoupper($col->label) }}</th>
+                @endforeach
+                
+                <th width="12%" style="text-align: center;">PELAPOR</th>
+                <th width="15%" style="text-align: center;">KETERANGAN</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($data as $index => $report)
+            @php $rowNum = 0; @endphp
+            @forelse($data as $row)
+                @php $rowNum++; @endphp
                 <tr>
-                    <td style="text-align: center; vertical-align: middle;">
-                        {{ $index + 1 }}
-                    </td>
-
-                    @if($selectedAsset === 'all') 
-                        <td style="vertical-align: middle;"><b>{{ $report['asset_code'] }}</b></td> 
+                    <td style="text-align: center; font-size: 10px;">{{ $rowNum }}</td>
+                    
+                    @if($selectedAsset === 'all')
+                        <td style="text-align: center; font-size: 10px; font-weight: bold;">{{ $row['asset_code'] }}</td>
                     @endif
                     
-                    <td style="vertical-align: middle; font-weight: bold; background-color: #f0fdfa; text-align: center; color: #0f766e;">
-                        {{ $report['periode_pemeriksaan'] }}
-                    </td>
-
-                    <td>
-                        <b>{{ $report['actor'] }}</b><br>
-                        <div class="meta-text">{{ \Carbon\Carbon::parse($report['record_date'])->format('d/m/Y H:i') }}</div>
-                    </td>
+                    <td style="text-align: center; font-size: 10px;">{{ $row['tanggal'] }}</td>
                     
-                    <td style="padding: 6px;">
-                        <div class="{{ $report['status'] === 'KRITIS' ? 'text-danger' : ($report['status'] === 'SAFE' ? 'text-black' : '') }}" style="font-weight: bold;">
-                            {{ $report['status'] }}
-                        </div>
-                        
-                        @if($report['status'] === 'KRITIS')
-                            @php
-                                $rincianRusak = str_replace("Kondisi: KRITIS\nRincian: ", "", $report['details']);
-                            @endphp
-                            <div class="meta-text" style="color: #b91c1c; margin-top: 2px;">
-                                {{ $rincianRusak }}
-                            </div>
-                        @elseif($report['status'] === 'SAFE')
-                            <div class="meta-text" style="margin-top: 2px;">
-                                Seluruh komponen standar normal.
-                            </div>
-                        @endif
-                    </td>
-
-                    <td style="vertical-align: middle;">
-                        {{ $report['notes'] ?? '-' }}
-                    </td>
-
-                    <td style="font-weight: bold; text-align: center; vertical-align: middle;">
-                        @if($report['kondisi_akhir'] == 'SAFE') 
-                            <span class="text-black">SAFE</span>
-                        @else 
-                            <span class="text-danger">KRITIS</span> 
-                        @endif
-                    </td>
+                    @foreach($row['dynamic_answers'] as $ans)
+                        <td style="text-align: center; font-weight: bold; font-size: 10px; {{ $ans['status'] === 'TMS' ? 'color: #dc2626;' : '' }}">
+                            {{ $ans['status'] }}
+                        </td>
+                    @endforeach
+                    
+                    <td style="font-size: 10px; text-align: center;">{{ $row['petugas'] }}</td>
+                    <td style="font-size: 10px;">{{ $row['keterangan'] ?? '-' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="{{ $selectedAsset === 'all' ? 7 : 6 }}" style="text-align: center; padding: 40px; color: #666;">Belum ada data inspeksi hydrant yang tercatat untuk periode ini.</td></tr>
+                <tr>
+                    <td colspan="{{ 4 + count($checklistCols) + ($selectedAsset==='all'?1:0) }}" style="text-align: center; padding: 40px; color: #666;">
+                        Belum ada data inspeksi hydrant yang tercatat untuk periode ini.
+                    </td>
+                </tr>
             @endforelse
         </tbody>
     </table>

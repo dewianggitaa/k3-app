@@ -95,6 +95,21 @@ class ReportFormController extends Controller
 
         $reportForm->activate();
 
+        $assetTypeLabel = strtoupper($reportForm->asset_type);
+        activity()
+            ->performedOn($reportForm)
+            ->causedBy(Auth::user())
+            ->event('updated')
+            ->withProperties([
+                'attributes' => [
+                    'asset_type' => $reportForm->asset_type,
+                    'document_code' => $reportForm->document_code,
+                    'revision_number' => $reportForm->revision_number,
+                    'status' => 'active',
+                ]
+            ])
+            ->log("Mengaktifkan versi dokumen baru untuk {$assetTypeLabel} (Revisi {$reportForm->revision_number})");
+
         return redirect()->back()->with('success', 'Versi dokumen berhasil diaktifkan. Versi sebelumnya telah dinonaktifkan.');
     }
 
@@ -115,21 +130,30 @@ class ReportFormController extends Controller
     {
         abort_unless(Auth::user()->can('manage-report-forms'), 403, 'Anda tidak memiliki izin.');
 
-        $pdfView = 'pdf.' . $reportForm->asset_type;
-        $orientation = $reportForm->asset_type === 'p3k' ? 'landscape' : 'portrait';
+        $pdftab = $reportForm->asset_type;
+        $pdfView = 'pdf.' . $pdftab;
+        $orientation = $pdftab === 'apar' ? 'portrait' : 'landscape';
+
+        $checklistCols = \App\Models\ChecklistParameter::where(function($q) use ($pdftab) {
+            $modelClass = $pdftab === 'apar' ? \App\Models\Apar::class : ($pdftab === 'hydrant' ? \App\Models\Hydrant::class : $pdftab);
+            $q->where('asset_type', $pdftab)->orWhere('asset_type', $modelClass);
+        })->where('input_type', '!=', 'date')->orderBy('order_index')->get();
 
         $pdf = Pdf::loadView($pdfView, [
             'data' => collect(),
-            'tab' => strtoupper($reportForm->asset_type),
+            'tab' => strtoupper($pdftab),
             'startDate' => now()->startOfMonth()->toDateString(),
             'endDate' => now()->endOfMonth()->toDateString(),
-            'selectedAsset' => 'all',
+            'selectedAsset' => ' ',
             'printedBy' => auth()->user()->name ?? 'Preview',
             'printedByDepartment' => auth()->user()->department->name ?? 'K3',
             'supervisor' => '',
             'documentVersion' => $reportForm,
             'p3kInventory' => collect(),
+            'checklistCols' => $checklistCols,
             'isPreview' => true,
+            'roomName' => ' ',
+            'yearRange' => now()->year,
         ])->setPaper('a4', $orientation);
 
         return $pdf->stream('Preview_' . strtoupper($reportForm->asset_type) . '_v' . $reportForm->revision_number . '.pdf');

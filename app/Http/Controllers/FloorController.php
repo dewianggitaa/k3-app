@@ -25,10 +25,15 @@ class FloorController extends Controller
                                       $q->where('name', 'like', "%{$search}%");
                                   });
                         })
+                        ->when($request->building, function ($query, $buildingId) {
+                            if ($buildingId !== 'all') {
+                                $query->where('building_id', $buildingId);
+                            }
+                        })
                         ->paginate(10)
                         ->withQueryString(),
             'buildings' => Building::all(),
-            'filters'   => $request->only(['search']),
+            'filters'   => $request->only(['search', 'building']),
             'can'       => [
                 'manage' => Auth::user()->can('manage-floors'),
             ],

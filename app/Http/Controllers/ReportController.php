@@ -125,6 +125,8 @@ class ReportController extends Controller
 
         $pdfView = 'pdf.' . $tab;
         $data = collect();
+        $roomName = '';
+        $yearRange = '';
 
         $supervisor = User::where('is_active', true)
             ->whereHas('position', function($q) {
@@ -140,6 +142,11 @@ class ReportController extends Controller
         if ($tab === 'p3k') {
             $rawData = $this->formatP3kPdfData($startDate, $endDate, $assetCode, $activityType, $checklistParams, $itemNames);
 
+            if ($assetCode !== 'all') {
+                $p3kModel = P3k::with('room')->where('code', $assetCode)->first();
+                $roomName = $p3kModel?->room?->name ?? '';
+            }
+
             $hasInspections = $rawData->contains('entry_type', 'inspeksi');
             if ($hasInspections) {
                 $documentVersion = ReportDocumentVersion::getActiveForType($tab);
@@ -151,25 +158,58 @@ class ReportController extends Controller
                     'supervisor' => $supervisorName,
                     'documentVersion' => $documentVersion,
                     'p3kInventory' => collect(),
+                    'roomName' => $roomName ?? '',
                     'isPreview' => true,
                 ]);
                 $data = $this->groupInspectionsByPage($rawData, $inspPageMap);
             } else {
                 $data = $rawData;
             }
+        } elseif ($tab === 'apar') {
+            $aparFormatted = $this->formatAparPdfData($startDate, $endDate, $assetCode);
+            $rawData = $aparFormatted['data'];
+            $checklistCols = $aparFormatted['columns'];
+
+            $documentVersion = ReportDocumentVersion::getActiveForType($tab);
+            if ($assetCode !== 'all') {
+                $apar = Apar::with('room')->where('code', $assetCode)->first();
+                $roomName = $apar?->room?->name ?? '';
+            }
+            $startYear = Carbon::parse($startDate)->year;
+            $endYear = Carbon::parse($endDate)->year;
+            $yearRange = $startYear === $endYear ? (string) $startYear : "$startYear – $endYear";
+
+            $pageNumbers = $this->discoverAparPageBreaks($rawData, [
+                'tab' => strtoupper($tab), 'startDate' => $startDate, 'endDate' => $endDate,
+                'selectedAsset' => $assetCode,
+                'printedBy' => auth()->user()->name ?? 'Sistem K3',
+                'printedByDepartment' => auth()->user()->department->name ?? 'K3',
+                'supervisor' => $supervisorName,
+                'documentVersion' => $documentVersion,
+                'roomName' => $roomName ?? '', 'yearRange' => $yearRange,
+                'checklistCols' => $checklistCols,
+                'isPreview' => true,
+            ]);
+            $data = $this->splitAparGroupsByPage($rawData, $pageNumbers);
         } else {
-            $modelClass = $tab === 'apar' ? Apar::class : Hydrant::class;
-            
             $allInspections = Inspection::with(['user.department', 'assetable'])
-                ->where('assetable_type', $modelClass)
+                ->where('assetable_type', Hydrant::class)
                 ->where('status', 'completed')
                 ->whereBetween('completed_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
-                ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [$modelClass], fn($q2) => $q2->where('code', $assetCode)))
+                ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [Hydrant::class], fn($q2) => $q2->where('code', $assetCode)))
                 ->get();
 
-            $data = $tab === 'apar'
-                ? $this->groupAndFormatK3Reports($allInspections, $checklistParams, $itemNames)
-                : $this->formatHydrantReports($allInspections, $checklistParams, $itemNames);
+            $hydrantFormatted = $this->formatHydrantPdfData($allInspections);
+            $data = $hydrantFormatted['data'];
+            $checklistCols = $hydrantFormatted['columns'];
+
+            if ($assetCode !== 'all') {
+                $hydrant = Hydrant::with('room')->where('code', $assetCode)->first();
+                $roomName = $hydrant?->room?->name ?? '';
+            }
+            $startYear = Carbon::parse($startDate)->year;
+            $endYear = Carbon::parse($endDate)->year;
+            $yearRange = $startYear === $endYear ? (string) $startYear : "$startYear – $endYear";
         }
 
         $documentVersion = ReportDocumentVersion::getActiveForType($tab);
@@ -188,7 +228,7 @@ class ReportController extends Controller
             }
         }
 
-        $orientation = 'landscape';
+        $orientation = $tab === 'apar' ? 'portrait' : 'landscape';
 
         $pdf = Pdf::loadView($pdfView, [
             'data' => $data, 'tab' => strtoupper($tab), 'startDate' => $startDate, 'endDate' => $endDate, 'selectedAsset' => $assetCode, 
@@ -197,6 +237,9 @@ class ReportController extends Controller
             'supervisor' => $supervisorName,
             'documentVersion' => $documentVersion,
             'p3kInventory' => $p3kInventory,
+            'roomName' => $roomName ?? '',
+            'yearRange' => $yearRange ?? '',
+            'checklistCols' => $checklistCols ?? collect(),
         ])->setPaper('a4', $orientation);
 
         activity()
@@ -367,6 +410,53 @@ class ReportController extends Controller
                 'kondisi_akhir'       => $status, 
             ];
         })->values();
+    }
+
+    private function formatHydrantPdfData($inspections)
+    {
+        $checklistCols = \App\Models\ChecklistParameter::where(function($query) {
+                $query->where('asset_type', 'hydrant')
+                      ->orWhere('asset_type', Hydrant::class);
+            })
+            ->orderBy('order_index')
+            ->get();
+
+        $dayNames   = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+
+        $result = $inspections->sortBy('completed_at')->map(function ($inspection) use ($checklistCols, $dayNames) {
+            $asset = $inspection->assetable;
+
+            $report  = is_string($inspection->report_data) ? json_decode($inspection->report_data, true) : ($inspection->report_data ?? []);
+            $answers = $report['answers'] ?? [];
+
+            $completedAt = Carbon::parse($inspection->completed_at);
+            $dateStr     = $dayNames[$completedAt->dayOfWeek] . ', ' . $completedAt->format('d/m/Y');
+
+            $dept = optional(optional($inspection->user)->department)->name ?? '';
+            $role = strtoupper($dept) === 'K3' ? 'K3' : 'PIC';
+
+            $dynamicAnswers = [];
+            foreach ($checklistCols as $col) {
+                $dynamicAnswers[] = [
+                    'label'  => $col->label,
+                    'status' => $this->checkParamMS($answers, $col),
+                ];
+            }
+
+            return [
+                'id'              => $inspection->id,
+                'asset_code'      => $asset->code ?? '-',
+                'tanggal'         => $dateStr,
+                'dynamic_answers' => $dynamicAnswers,
+                'petugas'         => (optional($inspection->user)->name ?? '-') . ' (' . $role . ')',
+                'keterangan'      => $report['notes'] ?? '',
+            ];
+        })->values();
+
+        return [
+            'data'    => $result,
+            'columns' => $checklistCols
+        ];
     }
 
     private function buildDetail($inspection, $checklistParams, $itemNames)
@@ -674,6 +764,7 @@ class ReportController extends Controller
         $year      = (int) $request->query('year', now()->year);
         $month     = $request->query('month', 'all');
         $assetCode = $request->query('asset_code', 'all');
+        $search    = $request->query('search', '');
 
         if ($month === 'all') {
             $startDate = Carbon::create($year, 1, 1)->startOfYear()->toDateTimeString();
@@ -701,6 +792,15 @@ class ReportController extends Controller
                 ->whereBetween('completed_at', [$startDate, $endDate])
                 ->whereHas('user', fn($q) => $q->whereHas('department', fn($q2) => $q2->where('name', '!=', 'K3')))
                 ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [P3k::class], fn($q2) => $q2->where('code', $assetCode)))
+                ->when($search !== '', function($q) use ($search) {
+                    $q->where(function($query) use ($search) {
+                        $query->whereHasMorph('assetable', [P3k::class], function($q2) use ($search) {
+                            $q2->where('code', 'like', "%{$search}%");
+                        })->orWhereHas('user', function($q3) use ($search) {
+                            $q3->where('name', 'like', "%{$search}%");
+                        });
+                    });
+                })
                 ->get();
 
             // PIC pemakaian (type='out') with location info
@@ -715,6 +815,12 @@ class ReportController extends Controller
                 ->where('p3k_usages.type', 'out')
                 ->whereBetween('p3k_usages.created_at', [$startDate, $endDate])
                 ->when($assetCode !== 'all', fn($q) => $q->where('p3ks.code', $assetCode))
+                ->when($search !== '', function($q) use ($search) {
+                    $q->where(function($query) use ($search) {
+                        $query->where('p3ks.code', 'like', "%{$search}%")
+                              ->orWhere('p3k_usages.reporter_name', 'like', "%{$search}%");
+                    });
+                })
                 ->select(
                     'p3k_usages.id', 'p3k_usages.p3k_id as p3k_asset_id',
                     'p3k_usages.qty', 'p3k_usages.notes',
@@ -728,16 +834,22 @@ class ReportController extends Controller
                 )
                 ->get();
 
-            // K3 restocks (type='in' by K3 dept) — for status calc only
-            $k3Restocks = DB::table('p3k_usages')
+            // All K3 restocks (type='in' by K3 dept) from start date onwards — for historical status calc
+            $k3RestocksQuery = DB::table('p3k_usages')
                 ->join('users', 'p3k_usages.user_id', '=', 'users.id')
                 ->join('departments', 'users.department_id', '=', 'departments.id')
                 ->where('p3k_usages.type', 'in')
                 ->where('departments.name', 'K3')
-                ->whereBetween('p3k_usages.created_at', [$startDate, $endDate])
-                ->select('p3k_usages.p3k_id', 'p3k_usages.created_at')
+                ->where('p3k_usages.created_at', '>=', $startDate);
+
+            if ($assetCode !== 'all') {
+                $k3RestocksQuery->join('p3ks', 'p3k_usages.p3k_id', '=', 'p3ks.id')
+                    ->where('p3ks.code', $assetCode);
+            }
+
+            $allRestocks = $k3RestocksQuery->select('p3k_usages.p3k_id', 'p3k_usages.created_at')
                 ->get()
-                ->groupBy(fn($u) => $u->p3k_id . '|' . Carbon::parse($u->created_at)->format('Y-m'));
+                ->groupBy('p3k_id');
 
             // Inventory + standard for low-stock check (current state)
             $inventories = DB::table('p3k_inventories')
@@ -755,7 +867,7 @@ class ReportController extends Controller
                 ->get()
                 ->groupBy('p3k_id');
 
-            $groupedData = $this->buildP3kPicReport($inspections, $picUsages, $k3Restocks, $inventories, $checklistParams, $itemNames);
+            $groupedData = $this->buildP3kPicReport($inspections, $picUsages, $allRestocks, $inventories, $checklistParams, $itemNames);
 
             $page    = \Illuminate\Pagination\Paginator::resolveCurrentPage() ?: 1;
             $perPage = 20;
@@ -775,6 +887,15 @@ class ReportController extends Controller
                 ->where('status', 'completed')
                 ->whereBetween('completed_at', [$startDate, $endDate])
                 ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [Apar::class], fn($q2) => $q2->where('code', $assetCode)))
+                ->when($search !== '', function($q) use ($search) {
+                    $q->where(function($query) use ($search) {
+                        $query->whereHasMorph('assetable', [Apar::class], function($q2) use ($search) {
+                            $q2->where('code', 'like', "%{$search}%");
+                        })->orWhereHas('user', function($q3) use ($search) {
+                            $q3->where('name', 'like', "%{$search}%");
+                        });
+                    });
+                })
                 ->get();
 
             $groupedData = $this->buildAparPicReport($allInspections, $checklistParams, $itemNames);
@@ -792,31 +913,31 @@ class ReportController extends Controller
         return Inertia::render('Reports/PicReport', [
             'activeTab'  => $tab,
             'assetsList' => $assetsList,
-            'filters'    => ['year' => $year, 'month' => $month, 'asset_code' => $assetCode],
+            'filters'    => ['year' => $year, 'month' => $month, 'asset_code' => $assetCode, 'search' => $search],
             'reports'    => $data,
         ]);
     }
 
-    private function buildP3kPicReport($inspections, $picUsages, $k3Restocks, $inventories, $checklistParams, $itemNames)
+    private function buildP3kPicReport($inspections, $picUsages, $allRestocks, $inventories, $checklistParams, $itemNames)
     {
         $rows = collect();
 
         // ── Inspection rows ──────────────────────────────────────────────────
         foreach ($inspections as $insp) {
             $assetId   = $insp->assetable_id;
-            $yearMonth = Carbon::parse($insp->completed_at)->format('Y-m');
 
             $assetInv = $inventories->get((int) $assetId, collect());
+            $assetRestocks = $allRestocks->get((int) $assetId, collect());
+            $hasRestockAfter = $assetRestocks->contains(fn($r) => Carbon::parse($r->created_at)->gt(Carbon::parse($insp->completed_at)));
 
             $reportData      = $insp->report_data ?? [];
             $conditionResult = $reportData['condition_result'] ?? null;
             $detailString    = $this->buildP3kDetail($insp, $checklistParams, $itemNames, $assetInv);
             $inspStatus = $conditionResult === 'critical' ? 'KRITIS'
                 : (str_contains($detailString, 'KRITIS') ? 'KRITIS' : 'SAFE');
-
-            $hasK3Restock = $k3Restocks->has("$assetId|$yearMonth");
+            
             if ($inspStatus === 'KRITIS') {
-                $status = $hasK3Restock ? 'Sudah Ditambah' : 'Perlu Ditambah';
+                $status = $hasRestockAfter ? 'Sudah Ditambah' : 'Belum Ditambah';
             } else {
                 $status = 'Aman';
             }
@@ -852,15 +973,23 @@ class ReportController extends Controller
         foreach ($usageGroups as $groupKey => $groupUsages) {
             $first     = $groupUsages->first();
             $assetId   = $first->p3k_asset_id;
-            $yearMonth = Carbon::parse($first->created_at)->format('Y-m');
+
+            $assetRestocks = $allRestocks->get((int) $assetId, collect());
+            $hasRestockAfter = $assetRestocks->contains(fn($r) => Carbon::parse($r->created_at)->gt(Carbon::parse($first->created_at)));
 
             // Low-stock check (current state)
             $assetInv    = $inventories->get((int) $assetId, collect());
             $hasLowStock = $assetInv->contains(fn($inv) => $inv->standard !== null && $inv->current_qty < $inv->standard);
-            $hasK3Restock = $k3Restocks->has("$assetId|$yearMonth");
-            $status = ($hasLowStock)
-                ? ($hasK3Restock ? 'Sudah Ditambah' : 'Perlu Ditambah')
-                : 'Aman';
+            
+            if ($hasRestockAfter) {
+                $status = 'Sudah Ditambah';
+            } else {
+                if ($hasLowStock) {
+                    $status = 'Belum Ditambah';
+                } else {
+                    $status = 'Aman';
+                }
+            }
 
             $location = implode(' › ', array_filter([$first->building_name, $first->floor_name, $first->room_name])) ?: '-';
 
@@ -883,7 +1012,11 @@ class ReportController extends Controller
             ]);
         }
 
-        return $rows->sortByDesc('sort_date')->values();
+        return $rows->sort(function ($a, $b) {
+            if ($a['status'] === 'Belum Ditambah' && $b['status'] !== 'Belum Ditambah') return -1;
+            if ($b['status'] === 'Belum Ditambah' && $a['status'] !== 'Belum Ditambah') return 1;
+            return $b['sort_date'] <=> $a['sort_date'];
+        })->values();
     }
 
     private function buildAparPicReport($inspections, $checklistParams, $itemNames)
@@ -947,6 +1080,16 @@ class ReportController extends Controller
                 $repairStatus = 'Perlu Perbaikan';
             }
 
+            $firstPicDate = count($picReports) > 0 ? $picReports->first()['record_date'] : null;
+            $sortDate = $k3Report?->completed_at ?? $firstPicDate ?? $firstDate;
+
+            $sortGroup = 3;
+            if ($repairStatus === 'Perlu Perbaikan') {
+                $sortGroup = 1;
+            } elseif ($validationStatus === 'Belum Divalidasi') {
+                $sortGroup = 2;
+            }
+
             return [
                 'id'                  => $k3Report?->id ?? 'period_' . $periodInspections->first()->assetable_id . '_' . uniqid(),
                 'asset_code'          => $asset->code ?? '-',
@@ -956,7 +1099,227 @@ class ReportController extends Controller
                 'pic_reports'         => $picReports->toArray(),
                 'validation_status'   => $validationStatus,
                 'repair_status'       => $repairStatus,
+                'sort_group'          => $sortGroup,
+                'sort_date'           => $sortDate,
             ];
-        })->values()->sortByDesc('record_date_k3');
+        })->values()->sort(function($a, $b) {
+            if ($a['sort_group'] !== $b['sort_group']) {
+                return $a['sort_group'] <=> $b['sort_group'];
+            }
+            if ($a['sort_group'] <= 2) {
+                return $a['sort_date'] <=> $b['sort_date'];
+            } else {
+                return $b['sort_date'] <=> $a['sort_date'];
+            }
+        })->values();
+    }
+
+    // ─── APAR PDF FORMATTING ──────────────────────────────────────────────────
+
+    private function formatAparPdfData($startDate, $endDate, $assetCode)
+    {
+        $monthNames = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+        $dayNames   = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+
+        // Fetch APAR checklist parameters sorted by order_index
+        $aparParamsList = \App\Models\ChecklistParameter::where(function($query) {
+                $query->where('asset_type', 'apar')
+                      ->orWhere('asset_type', Apar::class);
+            })
+            ->orderBy('order_index')
+            ->get();
+
+        $checklistCols = $aparParamsList->where('input_type', '!=', 'date')->values();
+        $dateParams    = $aparParamsList->where('input_type', 'date')->values();
+
+        $allInspections = Inspection::with(['user.department', 'assetable'])
+            ->where('assetable_type', Apar::class)
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59'])
+            ->when($assetCode !== 'all', fn($q) => $q->whereHasMorph('assetable', [Apar::class], fn($q2) => $q2->where('code', $assetCode)))
+            ->get();
+
+        // Group by opsi + bi-monthly period
+        $grouped = $allInspections->groupBy(function ($inspection) {
+            $scheduleDate = $inspection->schedule_date
+                ? Carbon::parse($inspection->schedule_date)
+                : Carbon::parse($inspection->completed_at);
+            $periodKey = $this->getBimonthlyPeriodKey($scheduleDate->format('Y'), $scheduleDate->month);
+            return $inspection->assetable_id . '|' . $periodKey;
+        });
+
+        $result = collect();
+
+        foreach ($grouped as $key => $periodInspections) {
+            $asset = $periodInspections->first()->assetable;
+            $assetExpiredAt = $asset->expired_at;
+
+            $firstDate = $periodInspections->first()->schedule_date
+                ? Carbon::parse($periodInspections->first()->schedule_date)
+                : Carbon::parse($periodInspections->first()->completed_at);
+
+            $startMonth = ($firstDate->month % 2 === 0) ? $firstDate->month - 1 : $firstDate->month;
+            $endMonth   = $startMonth + 1;
+            $periodLabel = $monthNames[$startMonth - 1] . ' – ' . $monthNames[$endMonth - 1];
+
+            $sorted = $periodInspections->sortBy('completed_at');
+
+            $inspectionRows = [];
+            foreach ($sorted as $inspection) {
+                $report  = is_string($inspection->report_data) ? json_decode($inspection->report_data, true) : ($inspection->report_data ?? []);
+                $answers = $report['answers'] ?? [];
+
+                $completedAt = Carbon::parse($inspection->completed_at);
+                $dateStr     = $dayNames[$completedAt->dayOfWeek] . ', ' . $completedAt->format('d/m');
+
+                $dept = optional(optional($inspection->user)->department)->name ?? '';
+                $role = strtoupper($dept) === 'K3' ? 'K3' : 'PIC';
+
+                $dynamicAnswers = [];
+                foreach ($checklistCols as $col) {
+                    $dynamicAnswers[] = [
+                        'label'  => $col->label,
+                        'status' => $this->checkParamMS($answers, $col),
+                    ];
+                }
+
+                $inspectionRows[] = [
+                    'tanggal'         => $dateStr,
+                    'dynamic_answers' => $dynamicAnswers,
+                    'petugas'         => (optional($inspection->user)->name ?? '-') . ' (' . $role . ')',
+                    'keterangan'      => $report['notes'] ?? '',
+                ];
+            }
+
+            $result->push([
+                'periode_label' => $periodLabel,
+                'asset_code'    => $asset->code ?? '-',
+                'inspections'   => $inspectionRows,
+            ]);
+        }
+
+        return [
+            'data' => $result->sortBy('periode_label')->values(),
+            'columns' => $checklistCols
+        ];
+    }
+
+    private function getAnswerForParam($answers, $param)
+    {
+        if (!$param) return null;
+
+        $paramId = $param->id;
+        $val = is_array($answers[$paramId] ?? null) ? ($answers[$paramId]['response'] ?? null) : ($answers[$paramId] ?? null);
+        if (!is_null($val)) return trim($val);
+
+        $options = is_string($param->options) ? json_decode($param->options, true) : ($param->options ?? []);
+        if (!empty($options) && is_array($options)) {
+            foreach ($answers as $data) {
+                $response = is_array($data) ? ($data['response'] ?? null) : $data;
+                if ($response !== null && in_array(trim($response), array_map('trim', $options))) {
+                    return trim($response);
+                }
+            }
+        }
+
+        if ($param->input_type === 'date') {
+            foreach ($answers as $data) {
+                $response = is_array($data) ? ($data['response'] ?? null) : $data;
+                if ($response !== null && (bool)strtotime(trim($response))) {
+                    return trim($response);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function checkParamMS($answers, $param)
+    {
+        if (!$param) return '-';
+        $answer = $this->getAnswerForParam($answers, $param);
+        if (!$answer) return '-';
+        return trim($answer) === trim($param->standard_value) ? 'MS' : 'TMS';
+    }
+
+    private function checkLabelMS($answers, $labelParam, $masaBerlakuParam, $tglKadaluarsaParam, $assetExpiredAt)
+    {
+        if (!$labelParam || !$masaBerlakuParam) return '-';
+
+        $a1 = $this->getAnswerForParam($answers, $labelParam);
+        $labelOk = $a1 && trim($a1) === trim($labelParam->standard_value);
+
+        $a2 = $this->getAnswerForParam($answers, $masaBerlakuParam);
+        $masaOk = $a2 && trim($a2) === trim($masaBerlakuParam->standard_value);
+
+        $tglOk = true;
+        if ($tglKadaluarsaParam) {
+            $a3 = $this->getAnswerForParam($answers, $tglKadaluarsaParam);
+            if ($a3) {
+                $tglOk = Carbon::parse($a3)->gte(Carbon::today());
+            } else {
+                $tglOk = $assetExpiredAt && Carbon::parse($assetExpiredAt)->gte(Carbon::today());
+            }
+        }
+
+        return ($labelOk && $masaOk && $tglOk) ? 'MS' : 'TMS';
+    }
+
+    private function discoverAparPageBreaks($data, $viewVars)
+    {
+        $discoveryFile = tempnam(sys_get_temp_dir(), 'apar_pg_');
+        file_put_contents($discoveryFile, '');
+
+        $discoveryVars = array_merge($viewVars, [
+            'data'          => $data,
+            'discoveryFile' => $discoveryFile,
+        ]);
+
+        $html = view('pdf.apar_discovery', $discoveryVars)->render();
+
+        $dompdf = new \Dompdf\Dompdf();
+        $dompdf->getOptions()->set('isPhpEnabled', true);
+        $dompdf->getOptions()->set('isRemoteEnabled', true);
+        $dompdf->getOptions()->set('chroot', public_path());
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('a4', 'portrait');
+        $dompdf->render();
+
+        $pageNumbers = [];
+        if (file_exists($discoveryFile)) {
+            $lines = file($discoveryFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            $pageNumbers = array_map('intval', $lines);
+            unlink($discoveryFile);
+        }
+        return $pageNumbers;
+    }
+
+    private function splitAparGroupsByPage($data, $pageNumbers)
+    {
+        $result = collect();
+        $rowIdx = 0;
+
+        foreach ($data as $group) {
+            $currentPage = null;
+            $currentInspections = [];
+
+            foreach ($group['inspections'] as $inspection) {
+                $page = $pageNumbers[$rowIdx] ?? 1;
+                $rowIdx++;
+
+                if ($currentPage !== null && $page !== $currentPage) {
+                    $result->push(array_merge($group, ['inspections' => $currentInspections]));
+                    $currentInspections = [];
+                }
+                $currentInspections[] = $inspection;
+                $currentPage = $page;
+            }
+
+            if (!empty($currentInspections)) {
+                $result->push(array_merge($group, ['inspections' => $currentInspections]));
+            }
+        }
+
+        return $result;
     }
 }

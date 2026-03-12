@@ -3,7 +3,7 @@ import { ref, watch } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { debounce } from 'lodash';
 import Swal from 'sweetalert2';
-import { Pencil, Trash2, Plus, Layers, X, Map, Save, ChevronDown } from 'lucide-vue-next';
+import { Pencil, Trash2, Plus, Layers, X, Map, Save, ChevronDown, Filter, Building2 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
 import Card from '@/Components/Card.vue';
@@ -22,6 +22,23 @@ const props = defineProps({
     filters: Object,
     can: Object,
 });
+
+const showFilters = ref(false);
+const building = ref(props.filters?.building || 'all');
+const search = ref(props.filters?.search || '');
+
+const applyFilters = debounce(() => {
+    router.get(
+        route('floors.index'), 
+        { 
+            search: search.value || undefined,
+            building: building.value !== 'all' ? building.value : undefined
+        }, 
+        { preserveState: true, replace: true }
+    );
+}, 300);
+
+watch([search, building], () => applyFilters());
 
 const toast = Swal.mixin({
     toast: true,
@@ -99,16 +116,6 @@ const submit = () => {
         });
     }
 };
-
-const search = ref(props.filters.search || '');
-watch(search, debounce((value) => {
-    router.get(
-        route('floors.index'), 
-        { search: value }, 
-        { preserveState: true, replace: true }
-    );
-}, 300));
-
 const deleteFloor = (id, name) => {
     Swal.fire({
         title: 'Hapus Lantai?',
@@ -157,20 +164,57 @@ const columns = [
         <div class="space-y-4">
             
             <Card no-padding class="p-4 overflow-visible" overflow-visible>
-                <div class="flex flex-row justify-between items-center gap-3 sm:gap-4">
+                <div class="flex flex-col xl:flex-row-reverse gap-4 justify-between items-start xl:items-center w-full">
                     
-                    <div class="flex-1 sm:w-1/3 sm:flex-none min-w-[200px]">
-                        <SearchInput v-model="search" placeholder="Cari lantai atau gedung..." />
-                    </div>
-
                     <button 
                         v-if="can?.manage"
                         @click="openCreate"
-                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-[38px] px-0 sm:w-auto sm:px-4 shrink-0"
+                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-full xl:w-auto sm:px-4 shrink-0"
                     >
                         <Plus class="w-5 h-5 sm:w-4 sm:h-4" />
-                        <span class="hidden sm:inline">Tambah Lantai</span>
+                        <span>Tambah Lantai</span>
                     </button>
+
+                    <div class="flex flex-col xl:flex-row gap-4 w-full xl:w-auto xl:flex-1 items-start xl:items-center">
+                        <div class="flex w-full xl:w-auto gap-2">
+                            <div class="flex-1 min-w-0 xl:flex-none xl:w-64">
+                                <SearchInput v-model="search" placeholder="Cari lantai atau gedung..." />
+                            </div>
+                            <button @click="showFilters = !showFilters" class="xl:hidden p-2 bg-ghost border border-ghost-hover hover:border-primary text-ink-light rounded-md flex items-center justify-center h-[38px] w-[38px] shrink-0 transition-colors">
+                                <Filter class="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div :class="[showFilters ? 'flex' : 'hidden', 'xl:flex flex-col xl:flex-row flex-wrap gap-3 w-full xl:w-auto items-start xl:items-center']">
+                            <div class="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center pt-1 xl:pt-0">
+                                <div class="w-full sm:w-48 flex-shrink-0">
+                                    <Dropdown align="left" width="full">
+                                        <template #trigger>
+                                            <button type="button" class="appearance-none h-[38px] bg-ghost border border-ghost-hover hover:border-primary text-ink dark:text-ink-dark/90 text-[13px] rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2 text-left flex justify-between items-center transition-colors outline-none cursor-pointer">
+                                                <div class="flex items-center gap-2 truncate whitespace-nowrap">
+                                                    <Building2 class="w-3.5 h-3.5 text-ink-light shrink-0" />
+                                                    <span class="truncate">{{ building === 'all' ? 'Semua Gedung' : buildings.find(b => b.id === building)?.name }}</span>
+                                                </div>
+                                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
+                                                    <ChevronDown class="w-3.5 h-3.5" />
+                                                </div>
+                                            </button>
+                                        </template>
+                                        <template #content>
+                                            <div class="py-1 max-h-60 overflow-y-auto">
+                                                <button @click="building = 'all'" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': building === 'all' }">
+                                                    Semua Gedung
+                                                </button>
+                                                <button v-for="b in buildings" :key="b.id" @click="building = b.id" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': building === b.id }">
+                                                    {{ b.name }}
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </Dropdown>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                 </div>
             </Card>

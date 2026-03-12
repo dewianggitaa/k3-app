@@ -173,7 +173,7 @@ class InspectionExecutionController extends Controller
                 }
             }
 
-            if ($calculatedStatus === 'safe' && $assetTypeShort === 'p3k' && $request->has('quantities')) {
+            if ($assetTypeShort === 'p3k' && $request->has('quantities')) {
                 $standards = P3kTypeItem::where('p3k_type_id', $inspection->assetable->p3k_type_id)
                     ->pluck('standard', 'p3k_item_id')
                     ->toArray();

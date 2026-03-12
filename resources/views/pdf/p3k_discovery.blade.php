@@ -5,6 +5,25 @@
 
 @section('content')
 
+    <div style="margin-bottom: 10px; font-size: 12px; font-weight: bold; line-height: 1.8;">
+        <table style="border: none; width: auto; margin-top: 0;">
+            <tr>
+                <td style="border: none; padding: 2px 0; width: 140px;">LOKASI KOTAK P3K</td>
+                <td style="border: none; padding: 2px 0;">: {{ $selectedAsset !== 'all' ? $roomName : 'Semua Lokasi' }}</td>
+            </tr>
+            @if($selectedAsset !== 'all')
+            <tr>
+                <td style="border: none; padding: 2px 0;">KODE ASET</td>
+                <td style="border: none; padding: 2px 0;">: {{ $selectedAsset }}</td>
+            </tr>
+            @endif
+            <tr>
+                <td style="border: none; padding: 2px 0;">BULAN</td>
+                <td style="border: none; padding: 2px 0;">: {{ \Carbon\Carbon::parse($startDate)->translatedFormat('F Y') }}</td>
+            </tr>
+        </table>
+    </div>
+
     <table>
         <thead>
             <tr>

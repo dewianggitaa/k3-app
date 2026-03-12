@@ -30,12 +30,25 @@ class RoomController extends Controller
                                         });
                                 });
                         })
+                        ->when($request->building, function ($query, $buildingId) {
+                            if ($buildingId !== 'all') {
+                                $query->whereHas('floor', function ($q) use ($buildingId) {
+                                    $q->where('building_id', $buildingId);
+                                });
+                            }
+                        })
+                        ->when($request->floor, function ($query, $floorId) {
+                            if ($floorId !== 'all') {
+                                $query->where('floor_id', $floorId);
+                            }
+                        })
                         ->paginate(10)
                         ->withQueryString(),
 
-            'floors'  => Floor::with('building')->get(),
-            'users'   => User::with('position')->select('id', 'name', 'position_id')->get(),
-            'filters' => $request->only(['search']),
+            'floors'    => Floor::with('building')->get(),
+            'buildings' => Building::all(),
+            'users'     => User::with('position')->select('id', 'name', 'position_id')->get(),
+            'filters'   => $request->only(['search', 'building', 'floor']),
             'can'     => [
                 'manage' => Auth::user()->can('manage-rooms'),
             ],

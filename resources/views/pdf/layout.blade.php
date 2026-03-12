@@ -49,14 +49,6 @@
             <h1 style="font-size: 18px; font-weight: bold; margin: 0; padding-top: 10px; border-bottom: 2px solid #000; padding-bottom: 15px;">CATATAN PEMERIKSAAN {{ $tab }}</h1>
         @endif
 
-        <div class="subtitle">
-            Periode: {{ \Carbon\Carbon::parse($startDate)->translatedFormat('d F Y') }} s/d {{ \Carbon\Carbon::parse($endDate)->translatedFormat('d F Y') }}
-        </div>
-        @if($selectedAsset !== 'all')
-        <div class="asset-info">
-            <strong>KODE ASET / LOKASI:</strong> {{ $selectedAsset }}
-        </div>
-        @endif
     </div>
 
     @yield('content')

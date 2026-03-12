@@ -124,7 +124,7 @@ const currentAssets = computed(() => props.assetsList[props.activeTab] || []);
 
 const p3kStatusConfig = {
     'Aman':          { bg: 'bg-success/20 text-success border-success/30',   dot: 'bg-emerald-400' },
-    'Perlu Ditambah': { bg: 'bg-danger/20 text-danger border-danger/30',            dot: 'bg-red-400' },
+    'Belum Ditambah': { bg: 'bg-danger/20 text-danger border-danger/30',            dot: 'bg-red-400' },
     'Sudah Ditambah': { bg: 'bg-primary/10 text-primary border-primary',          dot: 'bg-blue-400' },
 };
 
@@ -147,7 +147,7 @@ const repairConfig = {
         <template #header-title>
             <div class="flex items-center gap-4 px-4">
                 <h2 class="font-bold text-lg text-ink leading-tight flex items-center gap-2">
-                    <FileBarChart class="w-5 h-5 text-primary" /> Laporan Inspeksi PIC
+                    <FileBarChart class="w-5 h-5 text-primary" /> Status Laporan
                 </h2>
             </div>
         </template>
@@ -185,27 +185,6 @@ const repairConfig = {
                     </div>
 
                     <div :class="[showFilters ? 'flex' : 'hidden', 'xl:flex flex-col md:flex-row flex-wrap gap-3 w-full xl:w-auto items-end']">
-                        
-                        <div class="w-full sm:w-auto flex items-center flex-wrap gap-2 shrink-0 md:mr-2">
-                            <span class="text-[10px] font-bold text-ink-light uppercase tracking-wider self-center hidden sm:inline-block">Cepat:</span>
-                            <div class="flex gap-1.5 flex-wrap">
-                                <button @click="applyPreset('this_month')"
-                                    :class="activePreset === 'this_month' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-ghost text-ink-light border-ghost-hover hover:border-primary/50 hover:text-primary'"
-                                    class="px-3 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap outline-none">
-                                    Bulan Ini
-                                </button>
-                                <button @click="applyPreset('prev_month')"
-                                    :class="activePreset === 'prev_month' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-ghost text-ink-light border-ghost-hover hover:border-primary/50 hover:text-primary'"
-                                    class="px-3 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap outline-none">
-                                    Bln Lalu
-                                </button>
-                                <button @click="applyPreset('this_year')"
-                                    :class="activePreset === 'this_year' ? 'bg-primary text-white border-primary shadow-sm' : 'bg-ghost text-ink-light border-ghost-hover hover:border-primary/50 hover:text-primary'"
-                                    class="px-3 py-1 rounded-full text-[11px] font-bold border transition whitespace-nowrap outline-none">
-                                    Thn Ini
-                                </button>
-                            </div>
-                        </div>
 
                         <div class="w-full sm:w-28 flex-shrink-0">
                             <label class="block text-xs font-bold text-ink-light mb-1">Tahun</label>

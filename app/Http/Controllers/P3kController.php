@@ -26,17 +26,37 @@ class P3kController extends Controller
         $query = P3k::query()->with(['type', 'room.floor.building']);
 
         if ($request->search) {
-            $query->where('code', 'like', "%{$request->search}%")
-                  ->orWhereHas('type', function ($q) use ($request) {
-                      $q->where('name', 'like', "%{$request->search}%");
+            $query->where(function ($q) use ($request) {
+                $q->where('code', 'like', "%{$request->search}%")
+                  ->orWhereHas('type', function ($qType) use ($request) {
+                      $qType->where('name', 'like', "%{$request->search}%");
                   });
+            });
+        }
+
+        if ($request->building && $request->building !== 'all') {
+            $query->whereHas('room.floor', function ($q) use ($request) {
+                $q->where('building_id', $request->building);
+            });
+        }
+
+        if ($request->floor && $request->floor !== 'all') {
+            $query->whereHas('room', function ($q) use ($request) {
+                $q->where('floor_id', $request->floor);
+            });
+        }
+
+        if ($request->room && $request->room !== 'all') {
+            $query->where('room_id', $request->room);
         }
 
         return Inertia::render('MasterData/Assets/P3k/Index', [
             'p3ks'      => $query->latest()->paginate(10)->withQueryString(),
             'p3k_types' => P3kType::all(),
+            'buildings' => \App\Models\Building::all(),
+            'floors'    => \App\Models\Floor::with('building')->get(),
             'rooms'     => Room::with('floor.building')->get(),
-            'filters'   => $request->only(['search']),
+            'filters'   => $request->only(['search', 'building', 'floor', 'room']),
             'can'       => [
                 'manage' => Auth::user()->can('manage-assets'),
             ],
@@ -190,14 +210,33 @@ class P3kController extends Controller
             ->select('p3k_items.id', 'p3k_items.name', 'p3k_items.type')
             ->orderBy('p3k_items.name')
             ->get();
-
         $departments = Department::select('id', 'name')->orderBy('name')->get();
 
+        $deficientItems = DB::table('p3k_inventories')
+            ->join('p3k_items', 'p3k_inventories.p3k_item_id', '=', 'p3k_items.id')
+            ->join('p3k_type_items', function ($join) use ($p3k) {
+                $join->on('p3k_type_items.p3k_item_id', '=', 'p3k_items.id')
+                     ->where('p3k_type_items.p3k_type_id', $p3k->p3k_type_id);
+            })
+            ->where('p3k_inventories.p3k_id', $p3k->id)
+            ->whereRaw('p3k_inventories.current_qty < p3k_type_items.standard')
+            ->select('p3k_items.name', 'p3k_inventories.current_qty', 'p3k_type_items.standard')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'name' => $item->name,
+                    'current' => $item->current_qty,
+                    'standard' => $item->standard,
+                    'deficit' => $item->standard - $item->current_qty
+                ];
+            });
+
         return Inertia::render('P3k/UsageReport', [
-            'box'         => $p3k,
-            'medicines'   => $items,
-            'departments' => $departments,
-            'mode'        => 'in',
+            'box'             => $p3k,
+            'medicines'       => $items,
+            'departments'     => $departments,
+            'deficient_items' => $deficientItems,
+            'mode'            => 'in',
         ]);
     }
 

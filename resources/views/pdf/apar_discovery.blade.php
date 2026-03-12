@@ -1,3 +1,5 @@
+{{-- Discovery pass: renders ALL rows flat (no rowspan) with inline PHP markers --}}
+{{-- to detect page breaks. DomPDF writes page numbers to a temp file. --}}
 @extends('pdf.layout')
 
 @section('content')
@@ -26,8 +28,6 @@
         </table>
     </div>
 
-    @php $totalCols = $selectedAsset === 'all' ? 11 : 10; @endphp
-
     <table>
         <thead>
             <tr>
@@ -48,52 +48,29 @@
         </thead>
         <tbody>
             @php $rowNum = 0; @endphp
-            @forelse($data as $group)
-                @php $groupCount = count($group['inspections']); @endphp
-                @foreach($group['inspections'] as $idx => $row)
+            @foreach($data as $group)
+                @foreach($group['inspections'] as $row)
                     @php $rowNum++; @endphp
                     <tr>
-                        {{-- No --}}
-                        <td style="text-align: center; vertical-align: middle; font-size: 10px;">{{ $rowNum }}</td>
-
-                        {{-- Tabung (only when all assets) --}}
-                        @if($selectedAsset === 'all' && $idx === 0)
-                            <td rowspan="{{ $groupCount }}" style="text-align: center; vertical-align: middle; font-weight: bold; font-size: 10px;">
-                                {{ $group['asset_code'] }}
-                            </td>
+                        <td style="text-align: center; font-size: 10px;">{{ $rowNum }}</td>
+                        @if($selectedAsset === 'all')
+                            <td style="font-size: 10px; text-align: center;">{{ $group['asset_code'] }}</td>
                         @endif
-
-                        {{-- Periode (merged) --}}
-                        @if($idx === 0)
-                            <td rowspan="{{ $groupCount }}" style="text-align: center; vertical-align: middle; font-weight: bold; font-size: 10px; background-color: #f8fafc;">
-                                {{ $group['periode_label'] }}
-                            </td>
-                        @endif
-
-                        {{-- Tanggal individu --}}
-                        <td style="text-align: center; vertical-align: middle; font-size: 10px;">{{ $row['tanggal'] }}</td>
-
-                        {{-- Dynamic Columns --}}
+                        <td style="font-size: 10px; text-align: center;">{{ $group['periode_label'] }}</td>
+                        <td style="font-size: 10px; text-align: center;">{{ $row['tanggal'] }}</td>
                         @foreach($row['dynamic_answers'] as $ans)
-                            <td style="text-align: center; vertical-align: middle; font-weight: bold; font-size: 10px; {{ $ans['status'] === 'TMS' ? 'color: #dc2626;' : '' }}">
+                            <td style="text-align: center; font-size: 10px;">
                                 {{ $ans['status'] }}
+                                @if($loop->last)
+                                    {!! '<script type="text/php">file_put_contents("' . $discoveryFile . '", $PAGE_NUM . "\n", FILE_APPEND);</script>' !!}
+                                @endif
                             </td>
                         @endforeach
-
-                        {{-- Petugas --}}
-                        <td style="vertical-align: middle; font-size: 10px;">{{ $row['petugas'] }}</td>
-
-                        {{-- Keterangan --}}
-                        <td style="vertical-align: middle; font-size: 10px;">{{ $row['keterangan'] }}</td>
+                        <td style="font-size: 10px;">{{ $row['petugas'] }}</td>
+                        <td style="font-size: 10px;">{{ Str::limit($row['keterangan'] ?? '', 30) }}</td>
                     </tr>
                 @endforeach
-            @empty
-                <tr>
-                    <td colspan="{{ $totalCols }}" style="text-align: center; padding: 30px; color: #999; font-style: italic;">
-                        Tidak ada data inspeksi APAR untuk periode ini.
-                    </td>
-                </tr>
-            @endforelse
+            @endforeach
         </tbody>
     </table>
 

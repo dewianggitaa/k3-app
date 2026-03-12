@@ -1,12 +1,13 @@
 <script setup>
 import { useForm, Head, Link, usePage } from '@inertiajs/vue3';
-import { ArrowLeft, Trash2, Plus, Save, User } from 'lucide-vue-next';
+import { ArrowLeft, Trash2, Plus, Save, User, AlertTriangle } from 'lucide-vue-next';
 import Swal from 'sweetalert2';
 
-const props = defineProps({ 
+const props = defineProps({
     box: Object, 
     medicines: Array,
     departments: Array,
+    deficient_items: Array,
     mode: String // Menerima 'in' (penambahan) atau 'out' (pemakaian)
 });
 
@@ -79,6 +80,21 @@ const submit = () => {
             <div class="mb-6 p-3 rounded-md text-center font-bold border"
                 :class="mode === 'out' ? 'bg-danger/10 text-danger border-danger/30' : 'bg-primary/10 text-primary border-primary'">
                 {{ mode === 'out' ? 'Mode: Pencatatan Pemakaian' : 'Mode: Restock K3' }}
+            </div>
+
+            <!-- Warning for Deficient Items in Restock Mode -->
+            <div v-if="mode === 'in' && deficient_items && deficient_items.length > 0" class="mb-6 bg-warning/10 border border-warning/30 rounded-md p-4">
+                <div class="flex items-center gap-2 text-warning mb-2">
+                    <AlertTriangle class="w-5 h-5 flex-shrink-0" />
+                    <h3 class="font-bold text-sm">Daftar Item Perlu Restock:</h3>
+                </div>
+                <ul class="space-y-1 pl-7 text-xs text-ink dark:text-ink-dark/90">
+                    <li v-for="item in deficient_items" :key="item.name" class="flex justify-between items-center border-b border-warning/20 pb-1 last:border-0 last:pb-0">
+                        <span class="font-medium">{{ item.name }}</span>
+                        <span class="text-warning font-bold">Kurang {{ item.deficit }}</span>
+                    </li>
+                </ul>
+                <p class="text-[10px] text-ink-light mt-2 italic">* Data diambil dari selisih qty saat ini dan standar alat.</p>
             </div>
 
             <form @submit.prevent="submit" class="space-y-4">

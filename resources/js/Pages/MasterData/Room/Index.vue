@@ -5,7 +5,7 @@ import { debounce } from 'lodash';
 import Swal from 'sweetalert2'; 
 import { 
     Pencil, Trash2, Plus, MapPin, Hash, 
-    X, Save, Box, Palette, ChevronRight, ChevronDown, Map 
+    X, Save, Box, Palette, ChevronRight, ChevronDown, Map, Filter, Building2, Layers
 } from 'lucide-vue-next';
 
 import MainLayout from '@/Layouts/MainLayout.vue';
@@ -23,13 +23,40 @@ const props = defineProps({
     rooms: Object,
     filters: Object,
     floors: Array,
+    buildings: Array,
     users: Array,
     can: Object,
 });
 
-const search = ref(props.filters.search || '');
+const showFilters = ref(false);
+const building = ref(props.filters?.building || 'all');
+const floor = ref(props.filters?.floor || 'all');
+const search = ref(props.filters?.search || '');
 const showModal = ref(false);
 const isEditing = ref(false);
+
+const filteredFloors = computed(() => {
+    if (building.value === 'all') return props.floors;
+    return props.floors.filter(f => f.building_id === building.value);
+});
+
+watch(building, () => {
+    floor.value = 'all';
+});
+
+const applyFilters = debounce(() => {
+    router.get(
+        route('rooms.index'), 
+        { 
+            search: search.value || undefined,
+            building: building.value !== 'all' ? building.value : undefined,
+            floor: floor.value !== 'all' ? floor.value : undefined,
+        }, 
+        { preserveState: true, replace: true }
+    );
+}, 300);
+
+watch([search, building, floor], () => applyFilters());
 
 const selectedUserLabel = computed(() => {
     if (!form.pic_user_id) return '-- Tidak Ada / Belum Ditentukan --';
@@ -60,10 +87,6 @@ const toast = Swal.mixin({
     timer: 3000,
     timerProgressBar: true,
 });
-
-watch(search, debounce((value) => {
-    router.get(route('rooms.index'), { search: value }, { preserveState: true, replace: true });
-}, 300));
 
 const openCreateModal = () => {
     isEditing.value = false;
@@ -174,20 +197,93 @@ const columns = [
         <div class="space-y-4">
             
             <Card no-padding class="p-4 overflow-visible" overflow-visible>
-                <div class="flex flex-row justify-between items-center gap-3 sm:gap-4">
+                <div class="flex flex-col xl:flex-row-reverse gap-4 justify-between items-start xl:items-center w-full">
                     
-                    <div class="flex-1 sm:w-1/3 sm:flex-none min-w-[200px]">
-                        <SearchInput v-model="search" placeholder="Cari ruangan, lantai, atau gedung..." />
-                    </div>
-
                     <button 
                         v-if="can?.manage"
                         @click="openCreateModal"
-                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-[38px] px-0 sm:w-auto sm:px-4 shrink-0"
+                        class="bg-primary hover:bg-primary-hover text-white text-xs font-bold rounded-md shadow-sm flex items-center justify-center sm:gap-2 transition-all h-[38px] w-full xl:w-auto sm:px-4 shrink-0"
                     >
                         <Plus class="w-5 h-5 sm:w-4 sm:h-4" />
-                        <span class="hidden sm:inline">Tambah Ruangan</span>
+                        <span>Tambah Ruangan</span>
                     </button>
+
+                    <div class="flex flex-col xl:flex-row gap-4 w-full xl:w-auto xl:flex-1 items-start xl:items-center">
+                        <div class="flex w-full xl:w-auto gap-2">
+                            <div class="flex-1 min-w-0 xl:flex-none xl:w-64">
+                                <SearchInput v-model="search" placeholder="Cari ruangan, lantai..." />
+                            </div>
+                            <button @click="showFilters = !showFilters" class="xl:hidden p-2 bg-ghost border border-ghost-hover hover:border-primary text-ink-light rounded-md flex items-center justify-center h-[38px] w-[38px] shrink-0 transition-colors">
+                                <Filter class="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div :class="[showFilters ? 'flex' : 'hidden', 'xl:flex flex-col xl:flex-row flex-wrap gap-3 w-full xl:w-auto items-start xl:items-center']">
+                            <div class="flex flex-col sm:flex-row w-full xl:w-auto gap-3 items-center pt-1 xl:pt-0">
+                                
+                                <!-- Filter Gedung -->
+                                <div class="w-full sm:w-48 flex-shrink-0">
+                                    <Dropdown align="left" width="full">
+                                        <template #trigger>
+                                            <button type="button" class="appearance-none h-[38px] bg-ghost border border-ghost-hover hover:border-primary text-ink dark:text-ink-dark/90 text-[13px] rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2 text-left flex justify-between items-center transition-colors outline-none cursor-pointer">
+                                                <div class="flex items-center gap-2 truncate whitespace-nowrap">
+                                                    <Building2 class="w-3.5 h-3.5 text-ink-light shrink-0" />
+                                                    <span class="truncate">{{ building === 'all' ? 'Semua Gedung' : buildings.find(b => b.id === building)?.name }}</span>
+                                                </div>
+                                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
+                                                    <ChevronDown class="w-3.5 h-3.5" />
+                                                </div>
+                                            </button>
+                                        </template>
+                                        <template #content>
+                                            <div class="py-1 max-h-60 overflow-y-auto">
+                                                <button @click="building = 'all'" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': building === 'all' }">
+                                                    Semua Gedung
+                                                </button>
+                                                <button v-for="b in buildings" :key="b.id" @click="building = b.id" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': building === b.id }">
+                                                    {{ b.name }}
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </Dropdown>
+                                </div>
+
+                                <!-- Filter Lantai -->
+                                <div class="w-full sm:w-48 flex-shrink-0">
+                                    <Dropdown align="left" width="full">
+                                        <template #trigger>
+                                            <button type="button" class="appearance-none h-[38px] bg-ghost border border-ghost-hover hover:border-primary text-ink dark:text-ink-dark/90 text-[13px] rounded-md focus:ring-primary focus:border-primary block w-full pl-3 pr-8 py-2 text-left flex justify-between items-center transition-colors outline-none cursor-pointer">
+                                                <div class="flex items-center gap-2 truncate whitespace-nowrap">
+                                                    <Layers class="w-3.5 h-3.5 text-ink-light shrink-0" />
+                                                    <span class="truncate">
+                                                        <template v-if="floor === 'all'">Semua Lantai</template>
+                                                        <template v-else>
+                                                            <span class="font-semibold text-[11px] uppercase mr-1">{{ filteredFloors.find(f => f.id === floor)?.building?.name }}</span>
+                                                            {{ filteredFloors.find(f => f.id === floor)?.name }}
+                                                        </template>
+                                                    </span>
+                                                </div>
+                                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-ink-light">
+                                                    <ChevronDown class="w-3.5 h-3.5" />
+                                                </div>
+                                            </button>
+                                        </template>
+                                        <template #content>
+                                            <div class="py-1 max-h-60 overflow-y-auto">
+                                                <button @click="floor = 'all'" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': floor === 'all' }">
+                                                    Semua Lantai
+                                                </button>
+                                                <button v-for="f in filteredFloors" :key="f.id" @click="floor = f.id" class="block w-full text-left px-4 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors cursor-pointer" :class="{ 'bg-primary/10 text-primary font-bold': floor === f.id }">
+                                                    <span v-if="building === 'all'" class="font-bold text-[10px] uppercase block leading-none text-ink-light">{{ f.building?.name }}</span>
+                                                    {{ f.name }}
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </Dropdown>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                 </div>
             </Card>

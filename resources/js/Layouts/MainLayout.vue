@@ -94,7 +94,7 @@ const allMenuItems = [
         permission: 'view-reports',
     },
     {
-        name: 'Laporan PIC',
+        name: 'Status Laporan',
         icon: FileBarChart,
         route: 'reports.pic',
         permission: 'view-pic-reports',
